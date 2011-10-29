@@ -21,8 +21,17 @@
 //           page to find the root node. 
 //-------------------------------------------------------------------
 BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
-	//Your code here
-	header = NULL;
+	PageID headerID = NULL;
+	Status s = MINIBASE_DB->GetFileEntry(filename, headerID);
+	if (s == FAIL) {
+		MINIBASE_DB->AddFileEntry(filename, headerID);
+		header = new BTreeHeaderPage();
+		header->Init(headerID);
+		header->SetRootPageID(INVALID_PAGE);
+	}
+	
+	Page* headerPage = NULL;
+	MINIBASE_BM->PinPage(headerID, headerPage);
 }
 
 
@@ -39,7 +48,8 @@ BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
 //-------------------------------------------------------------------
 
 BTreeFile::~BTreeFile() {
-	// Your code here.
+	MINIBASE_BM->UnpinPage(header->GetRootPageID(), true);
+	delete header;
 }
 
 //-------------------------------------------------------------------

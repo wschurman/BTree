@@ -35,7 +35,8 @@ private:
 	BTreeHeaderPage* header;
 
 	Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid);
-	Status BTreeFile::SplitPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid);
+	Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid);
+	Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid);
 
 	//Please don't delete this method. It's used for testing, 
 	// and may be useful for you.

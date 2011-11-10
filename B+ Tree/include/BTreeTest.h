@@ -46,6 +46,7 @@ public:
 	static bool TestSinglePage();
 	static bool TestInsertsWithLeafSplits();
 	static bool TestInsertsWithIndexSplits();
+	static bool TestModifiedInserts();
 	static bool TestLargeWorkload();
 
 };

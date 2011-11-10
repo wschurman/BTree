@@ -469,7 +469,7 @@ public:
 	//-------------------------------------------------------------------
 	bool Contains(const char* key, ValType val) {
 		PageKVScan<ValType> scan;
-		if(Search(key, &scan) != OK) {
+		if(Search(key, scan) != OK) {
 			return false;
 		}
 
@@ -498,7 +498,7 @@ public:
 	//-------------------------------------------------------------------
 	bool ContainsKey(const char* key) {
 		PageKVScan<ValType> scan;
-		if(Search(key, &scan) != OK) {
+		if(Search(key, scan) != OK) {
 			return false;
 		}
 		return true;

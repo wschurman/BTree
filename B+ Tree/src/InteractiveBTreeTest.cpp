@@ -51,8 +51,7 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 			scanHighLow(btf,low,high);
 		}
 		else if(!strcmp(command, "print")) {
-			if(btf != NULL)
-				btf->PrintWhole(true);
+			btf->PrintWhole(true);
 		}
 		else if(!strcmp(command, "test")) {
 			int testNum; 
@@ -91,7 +90,16 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 					std::cerr << "PASSED Test " << testNum << std::endl;
 				}
 				break;
+			case 5:
+				if(!BTreeDriver::TestModifiedInserts()) {
+					std::cerr << "FAILED Test " << testNum << std::endl;
+				}
+				else {
+					std::cerr << "PASSED Test " << testNum << std::endl;
+				}
+				break;
 			}
+
 		}
 
 		else if(!strcmp(command, "quit")) {
@@ -169,7 +177,13 @@ void InteractiveBTreeTest::scanHighLow(BTreeFile *btf, int low, int high) {
 	char strLow[MAX_INT_LENGTH], strHigh[MAX_INT_LENGTH];
 	BTreeDriver::toString(low, strLow);
 	BTreeDriver::toString(high, strHigh);
-	BTreeFileScan *scan = btf->OpenScan(strLow, strHigh);
+
+	char* lowPtr = (low == -1) ? NULL : strLow;
+	char* highPtr = (high == -1) ? NULL : strHigh;
+
+
+	BTreeFileScan *scan = btf->OpenScan(lowPtr, highPtr);
+	
 
 	if(scan == NULL) {
 		cout << "  Error: cannot open a scan." << endl;

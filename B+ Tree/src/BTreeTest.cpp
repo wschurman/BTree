@@ -552,7 +552,8 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	Status status;
 	BTreeFile *btf;
 	bool res;
-
+	LeafPage* leftPage;
+	LeafPage* rightPage;
 	btf = new BTreeFile(status, "BTreeTest2");
 	if (status != OK) {
 		minibase_errors.show_errors();
@@ -575,13 +576,13 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	
 
 	PageID leftPid = btf->GetLeftLeaf();
-	LeafPage* leftPage;
+
 	if(MINIBASE_BM->PinPage(leftPid, (Page*&) leftPage) == FAIL) {
 		std::cerr << "Error pinning left leaf page." << std::endl;
 		res = false;
 	}
 	PageID rightPid = leftPage->GetNextPage();
-	LeafPage* rightPage;
+
 	if(MINIBASE_BM->PinPage(rightPid, (Page*&) rightPage) == FAIL) {
 		std::cerr << "Error pinning right leaf page." << std::endl;
 		res = false;
@@ -622,7 +623,7 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	std::cout << "Inserting 30 large keys..."	<< std::endl;
 	res = InsertRange(btf, 2, 31, 1, 20);
 
-	//btf->PrintWhole(true);
+
 
 	res = res && TestNumLeafPages(btf, 1);
 	res = res && TestNumEntries(btf, 30);
@@ -631,7 +632,7 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	std::cout << "Causing split with new key in left node..."	<< std::endl;
 	res = res && InsertKey(btf, 1, 1, 20);
 
-	//btf->PrintWhole(true);
+
 
 	res = res && TestNumLeafPages(btf, 2);
 	res = res && TestNumEntries(btf, 31);
@@ -688,7 +689,6 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	res = res && TestNumEntries(btf, 122);
 
 
-
 	leftPid = btf->GetLeftLeaf();
 	if(MINIBASE_BM->PinPage(leftPid, (Page*&) leftPage) == FAIL) {
 		std::cerr << "Error pinning left leaf page." << std::endl;
@@ -712,7 +712,6 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 		res = false;
 	}
 
-	
 
 	char keyArr[MAX_KEY_LENGTH];
 	toString(5, keyArr, 30);
@@ -723,7 +722,6 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	delete scan;
 
 
-
 	if(btf->DestroyFile() != OK) {
 		std::cerr << "Error destroying BTreeFile" << std::endl;
 		res = false;
@@ -732,10 +730,7 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	delete btf;
 
 
-
 	return res;
-
-
 }
 
 bool BTreeDriver::TestInsertsWithIndexSplits() {
@@ -925,6 +920,51 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	return res;
 }
+
+bool BTreeDriver::TestModifiedInserts() {
+	Status status;
+	BTreeFile *btf;
+	bool res;
+
+	btf = new BTreeFile(status, "BTreeTest5");
+	if(status != OK) {
+		minibase_errors.show_errors();
+		exit(1);
+	}
+	std::cout << "Starting Test 5..." << std::endl;
+	std::cout << "BTreeIndex created successfully." << std::endl;
+
+
+	res = InsertDuplicates(btf, 1, 60, 1, 30);
+
+
+	res = res && InsertDuplicates(btf, 3, 55, 1, 30);
+	res = res && InsertDuplicates(btf, 7, 65, 1, 30);
+
+	res = res && TestNumLeafPages(btf, 3);
+	res = res && TestNumEntries(btf, 180);
+
+	res = res && InsertDuplicates(btf, 4, 75, 1, 30);	
+	res = res && TestNumLeafPages(btf, 4);
+	res = res && TestNumEntries(btf, 255);
+
+	char searchKey[MAX_KEY_LENGTH];
+	toString(4, searchKey, 30);
+	
+
+	BTreeFileScan* scan = btf->OpenScan(searchKey, searchKey);
+	res = res && TestScanCount(scan, 75);
+	
+	if(btf->DestroyFile() != OK) {
+		std::cerr << "Error destroying BTreeFile" << std::endl;
+		res = false;
+	}
+
+	delete scan;
+	delete btf;
+	return res;
+}
+
 
 bool BTreeDriver::TestLargeWorkload() {
 	Status status;

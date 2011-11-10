@@ -15,6 +15,7 @@ void printHelp() {
 	cout << "\tTest 2: Test inserts with leaf splits." << endl;
 	cout << "\tTest 3: Test inserts with index splits." << endl;
 	cout << "\tTest 4: Test a large workload." << endl;
+	cout << "\tTest 5: Test modified inserts." << endl;
 	cout << "print"<<endl;
 	cout << "quit (not required)"<<endl;
 	cout << "Note that (<low>==-1)=>min and (<high>==-1)=>max"<<endl;

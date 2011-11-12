@@ -4,6 +4,9 @@
 #include "bufmgr.h"
 #include "system_defs.h"
 
+#include <iostream>
+using namespace std;
+
 //-------------------------------------------------------------------
 // BTreeFile::BTreeFile
 //
@@ -88,11 +91,13 @@ Status BTreeFile::DestroyFile() {
 //-------------------------------------------------------------------
 Status BTreeFile::Insert(const char *key, const RecordID rid) {
 	// TODO: ensure all statuses are handled
+	//cout << "Call to insert: " << key << endl;
 	PageID rootPid;
 	Status s;
 	rootPid = header->GetRootPageID();
 	// If no root page, create one
 	if(rootPid == INVALID_PAGE) {
+		cout << "No Root, creating" << endl;
 		LeafPage* leafpage;
 		s = MINIBASE_BM->NewPage(rootPid, (Page*&)leafpage);
 		if(s == OK){
@@ -100,18 +105,20 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 			leafpage->Init(rootPid, LEAF_PAGE);
 			leafpage->SetNextPage(INVALID_PAGE);
 			leafpage->SetPrevPage(INVALID_PAGE);
-			leafpage->Insert(key,rid);
+			s = leafpage->Insert(key,rid);
 
 			//Make this the root page
 			header->SetRootPageID(rootPid);
 			UNPIN(rootPid, DIRTY);
-			return OK;
+			return s;
 		} else {
 			return s;
 		}
 	}
 	//there is root already
 	else{
+		//cout << "Traversing" << endl;
+
 		PageID currPid = rootPid;
 		PageID insertPid = NULL;
 
@@ -122,6 +129,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 		s = this->InsertHelper(currPid, split, new_child_key, new_child_pageid, key, rid);
 
 		if (split == NEEDS_SPLIT) { // needs to split root
+			cout << "Needs to split root" << endl;
 			ResizableRecordPage* currPage;
 			PIN(rootPid, currPage);
 
@@ -173,6 +181,7 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 	PIN(currPid, currPage);
 
 	if (currPage->GetType() == INDEX_PAGE) {
+		//cout << "Insert helper into index page" << endl;
 		IndexPage* indexPage = (IndexPage*) currPage;
 		PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 		indexPage->OpenScan(iter);
@@ -213,6 +222,7 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 			return s;
 		}
 	} else if(currPage->GetType() == LEAF_PAGE) {
+		//cout << "Insert helper into leaf page" << endl;
 		// does not use split
 		// in the case that this leaf page needs to split:
 			// split
@@ -220,7 +230,7 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 		LeafPage* leafPage = (LeafPage*) currPage;
 		if (leafPage->Insert(key, rid) != OK) {
 			// split this page.
-
+			//cout << "insert into leaf failed, needs to split" << endl;
 			// make new page
 			LeafPage* newLeafPage;
 			PageID newLeafPid;
@@ -245,6 +255,8 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 }
 
 Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid) {
+
+	cout << "Call to split leaf page" << endl;
 	// replace scans with pointer swapping in the future
 	PageKVScan<RecordID>* oldScan = new PageKVScan<RecordID>();
 	PageKVScan<RecordID>* newScan = new PageKVScan<RecordID>(); // need to cleanup
@@ -253,6 +265,7 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 	char* currKey;
 	RecordID currID;
 	Status ds = OK;
+
 	bool insertedNew = false;
 
 	while (oldScan->GetNext(currKey, currID) != DONE) {
@@ -263,6 +276,9 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 			return ds;
 		}
 	}
+
+	//cout << "DEBUG: size of oldPage should be 0:" << oldPage->GetNumOfRecords() << endl;
+	//cout << "DEBUG: size of newPage should be 59: " << newPage->GetNumOfRecords() << endl;
 
 	newPage->OpenScan(newScan);
 	newScan->GetNext(currKey, currID);
@@ -291,13 +307,17 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 	// prev/next pointers
 	PageID oldNextPageID = oldPage->GetNextPage();
 	ResizableRecordPage* oldNextPage;
-	PIN(oldNextPageID, oldNextPage);
+	if (oldNextPageID != INVALID_PAGE) {
+		PIN(oldNextPageID, oldNextPage);
+	}
 
 	oldPage->SetNextPage(newPage->PageNo());
 	newPage->SetPrevPage(oldPage->PageNo());
 
-	oldNextPage->SetPrevPage(newPage->PageNo());
-	newPage->SetNextPage(oldNextPageID);
+	if (oldNextPageID != INVALID_PAGE) {
+		oldNextPage->SetPrevPage(newPage->PageNo());
+		newPage->SetNextPage(oldNextPageID);
+	}
 
 
 	return ds;
@@ -305,6 +325,7 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 
 // Lots of duplicated code, may try to template out
 Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid) {
+	cout << "Call to splitindexpage" << endl;
 	// replace scans with pointer swapping in the future
 	PageKVScan<PageID>* oldScan = new PageKVScan<PageID>();
 	PageKVScan<PageID>* newScan = new PageKVScan<PageID>(); //need to cleanup
@@ -345,13 +366,17 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 	// prev/next pointers
 	PageID oldNextPageID = oldPage->GetNextPage();
 	ResizableRecordPage* oldNextPage;
-	PIN(oldNextPageID, oldNextPage);
+	if (oldNextPageID != INVALID_PAGE) {
+		PIN(oldNextPageID, oldNextPage);
+	}
 
 	oldPage->SetNextPage(newPage->PageNo());
 	newPage->SetPrevPage(oldPage->PageNo());
 
-	oldNextPage->SetPrevPage(newPage->PageNo());
-	newPage->SetNextPage(oldNextPageID);
+	if (oldNextPageID != INVALID_PAGE) {
+		oldNextPage->SetPrevPage(newPage->PageNo());
+		newPage->SetNextPage(oldNextPageID);
+	}
 
 	return ds;
 }

@@ -485,7 +485,9 @@ bool BTreeDriver::TestSinglePage() {
 
 	std::cout << "Inserting 59 initial keys..."	<< std::endl;
 	res = InsertRange(btf, 1, 59);
+	std::cout << "Got Here" << std::endl;
 	res = res && TestNumLeafPages(btf, 1);
+	std::cout << "Got Here" << std::endl;
 	res = res && TestNumEntries(btf, 59);
 
 

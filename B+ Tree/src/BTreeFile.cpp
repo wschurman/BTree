@@ -43,6 +43,8 @@ BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
 	if (returnStatus != OK) {
 		std::cout << "Unable to pin header page in BTreeFile constructor" << std::endl;
 	}
+
+	this->dbfile = filename;
 }
 
 
@@ -59,7 +61,7 @@ BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
 //-------------------------------------------------------------------
 
 BTreeFile::~BTreeFile() {
-	MINIBASE_BM->UnpinPage(header->GetRootPageID(), true);
+	MINIBASE_BM->UnpinPage(((HeapPage*)this->header)->PageNo(), true);
 }
 
 //-------------------------------------------------------------------
@@ -73,8 +75,78 @@ BTreeFile::~BTreeFile() {
 //           to delete the database file. 
 //-------------------------------------------------------------------
 Status BTreeFile::DestroyFile() {
+	/*BTreeFileScan* scan = this->OpenScan(NULL, NULL);
 
-	return FAIL;
+	while (scan->GetNext() != DONE) {
+		scan->DeleteCurrent();
+	}*/
+
+	PageID rootPid;
+	Status s;
+	rootPid = header->GetRootPageID();
+
+	if (rootPid == INVALID_PAGE) {
+		return OK;
+	} else {
+		s = this->DestroyHelper(rootPid);
+		if (s != OK) {
+			cout << "First call to destroy helper failed" << endl;
+			return s;
+		}
+		s = MINIBASE_BM->FreePage(rootPid);
+		if (s != OK) {
+			cout << "Freeing root failed" << endl;
+			return s;
+		}
+		MINIBASE_DB->DeleteFileEntry(this->dbfile);
+	}
+}
+
+Status BTreeFile::DestroyHelper(PageID currPid) {
+	ResizableRecordPage* currPage;
+	Status s = OK;
+
+	PIN(currPid, currPage);
+
+	if (currPage->GetType() == INDEX_PAGE) {
+		IndexPage* indexPage = (IndexPage*) currPage;
+		PageKVScan<PageID>* iter = new PageKVScan<PageID>();
+		indexPage->OpenScan(iter); // maybe include if stuff breaks
+
+		char* currKey;
+		PageID currID;
+		Status ds = OK;
+
+		while (iter->GetNext(currKey, currID) != DONE) {
+			ds = this->DestroyHelper(currID);
+			if (ds != OK) {
+				cout << "Destroy helper failed" << endl;
+				return ds;
+			}
+			ds = MINIBASE_BM->FreePage(currID);
+			if (ds != OK) {
+				cout << "Free Page failed" << endl;
+				return ds;
+			}
+		}
+		
+		delete iter;
+
+		UNPIN(currPid, DIRTY);
+		return s;
+	} else if(currPage->GetType() == LEAF_PAGE) {
+		
+		UNPIN(currPid, CLEAN);
+
+		//s = MINIBASE_BM->FreePage(currPid);
+
+		return s;
+	} else {
+		UNPIN(currPid, CLEAN);
+		return FAIL;
+	}
+
+	return s;
 }
 
 
@@ -201,11 +273,12 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 		//cout << "Insert helper into index page" << endl;
 		IndexPage* indexPage = (IndexPage*) currPage;
 		PageKVScan<PageID>* iter = new PageKVScan<PageID>();
-		indexPage->OpenScan(iter);
+		//indexPage->OpenScan(iter); // maybe include if stuff breaks
 		indexPage->Search(key, *iter);
 		char * c;
 		iter->GetNext(c, nextPid);
 		// may need to deallocate iter
+		delete iter;
 		
 		s = this->InsertHelper(nextPid, split, new_child_key, new_child_pageid, key, rid); // traverse to child
 
@@ -319,6 +392,8 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 		}
 	}
 
+	delete oldScan;
+
 	//cout << "DEBUG: size of oldPage should be 0:" << oldPage->GetNumOfRecords() << endl;
 	//cout << "DEBUG: size of newPage should be 59: " << newPage->GetNumOfRecords() << endl;
 
@@ -362,6 +437,8 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 			return FAIL;
 		}
 	}
+
+	delete newScan;
 
 	if (insertedNew == false) {
 		ds = newPage->Insert(key, rid);
@@ -422,6 +499,8 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 		}
 	}
 
+	delete oldScan;
+
 	s1 = newPage->OpenScan(newScan);
 	if (s1 != OK) {
 		cout << "Error opening scan of newPage in SplitIndexPage" << endl;
@@ -462,6 +541,8 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 			return FAIL;
 		}
 	}
+
+	delete newScan;
 
 	if (insertedNew == false) {
 		ds = newPage->Insert(key, rid);

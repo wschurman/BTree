@@ -33,7 +33,9 @@ public:
 private:
 
 	BTreeHeaderPage* header;
+	const char * dbfile;
 
+	Status BTreeFile::DestroyHelper(PageID currPid);
 	Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid);
 	Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid);
 	Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid);

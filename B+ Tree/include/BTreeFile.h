@@ -44,7 +44,8 @@ private:
 	// and may be useful for you.
 	PageID GetLeftLeaf();
 
-
+	Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex);
+	Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex);
 
 };
 

@@ -98,7 +98,8 @@ Status BTreeFile::DestroyFile() {
 			cout << "Freeing root failed" << endl;
 			return s;
 		}
-		MINIBASE_DB->DeleteFileEntry(this->dbfile);
+		s = MINIBASE_DB->DeleteFileEntry(this->dbfile);
+		return s;
 	}
 }
 
@@ -591,8 +592,74 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 //           !NULL    >lowKey   lowKey to highKey
 //-------------------------------------------------------------------
 BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
-	//Your code here
-	return NULL;
+	BTreeFileScan* newScan = new BTreeFileScan();
+	
+	if (header->GetRootPageID() != INVALID_PAGE) {
+		PageID lowIndex;
+		Status s;
+		s = _searchTree(lowKey,  header->GetRootPageID(), lowIndex); //look for lowIndex
+		if (s != OK)
+		{
+			//maybe just return NULL
+			newScan->done = true; //??? SHOULD FAIL instead????
+			newScan->lowKey = lowKey;
+			newScan->highKey = highKey;
+			newScan->currentPageID = INVALID_PAGE;
+			newScan->bt = this;
+			return newScan;
+		} else{
+			//NONTRIVIAL CASE:
+			newScan->done = false;
+			newScan->lowKey = lowKey;
+			newScan->highKey = highKey;
+			newScan->currentPageID = lowIndex;
+		    newScan->_SetIter();
+			std::cout << "OPENED OK" << std::endl;
+			return newScan; 
+		}
+	} else {
+		newScan->done= true; //???
+		newScan->lowKey = lowKey;
+		newScan->highKey = highKey;
+		newScan->currentPageID = INVALID_PAGE;
+		newScan->bt= this;
+		return newScan;
+	}
+}
+
+Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex)
+{
+	std::cerr << "SearchTree" << std::endl;
+    ResizableRecordPage *page;
+	Status s;
+    PIN (currentID, page);
+    if (page->GetType()==INDEX_PAGE){
+		s =	_searchIndexNode(key,  currentID, (IndexPage*)page, lowIndex);
+	}
+	else if(page->GetType()==LEAF_PAGE){
+		lowIndex = page->PageNo();
+		UNPIN(currentID,CLEAN);
+	}
+	else
+		return FAIL;
+	return OK;
+}
+
+Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex)
+{
+	std::cerr << "SearchIndex" << std::endl;
+	PageID nextPid;
+	PageKVScan<PageID>* iter = new PageKVScan<PageID>();
+	//currIndex->OpenScan(iter); //NOT NEEDED??
+	currentIndex->Search(key, *iter);
+	char * c;
+	iter->GetNext(c, nextPid); //NEXT???   NEED to check if Fail
+	// may need to deallocate iter *************
+	UNPIN(currentID, CLEAN);
+	Status s = _searchTree (key, nextPid, lowIndex);
+	if (s == FAIL)
+		return FAIL;
+	return OK;
 }
 
 //-------------------------------------------------------------------

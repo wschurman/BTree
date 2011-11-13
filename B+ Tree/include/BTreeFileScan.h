@@ -5,7 +5,7 @@
 #include "BTreeInclude.h"
 
 class BTreeFileScan {// : public IndexFileScan {
-	
+
 public:
 	// BTreeFile is a friend, which means that it can access the private
 	// members of BTreeFileScan. You should use this to initialize the
@@ -30,9 +30,16 @@ private:
 	//Note that the constructor is prova
 	BTreeFileScan();
 
-
 	// You may add private methods here. 
+	const char * lowKey;
+    const char * highKey;
+    BTreeFile* bt; //not needed???
+	PageID currentPageID;
+    bool done;
+	PageKVScan<RecordID>* scan;
+	LeafPage* currentPage; 
 
+	Status BTreeFileScan::_SetIter();
 
 };
 

@@ -42,7 +42,7 @@ BTreeFileScan::BTreeFileScan() {
 //-------------------------------------------------------------------
 
 Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
-{ 
+{	PIN(currentPageID, currentPage);
     if(this->done){
 		return DONE;
     }
@@ -50,51 +50,42 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
     while (!(this->done)) {
 
 		Status s = scan->GetNext(keyPtr, rid);
-		if (s != OK) {
-			std::cout << "Get Next Failed" << std::endl;
-			return s;
-		}
-		std::cout << "GOT 2" << std::endl;
+		
+		//std::cout << "GOT 2" << std::endl;
         if (s != DONE) {
 			if (this->highKey == NULL || strcmp(keyPtr, this->highKey) <= 0) { //within upper bound
-				
 				if(this->lowKey == NULL || strcmp(keyPtr, this->lowKey) >= 0) { //within lower bound
-					std::cout << "GOT 1" << std::endl;
+					UNPIN(currentPageID, CLEAN);
                     return OK;
                 } else {
-					std::cout << "What???" << std::endl;
 					continue; //haven't reached range yet
                 }
             } else { //exceeded upper bound
 				this->done = true;
                 rid.pageNo = INVALID_PAGE;
                 rid.slotNo = -1;
-                UNPIN((currentPage->PageNo()), CLEAN);
+                UNPIN(currentPageID, CLEAN);
+				std::cout << "UNPIN LALALA: " << currentPageID << std::endl;
                 return DONE;
             }
 		} else { // s == DONE; current scanned page = done
-			// go to next page
 			currentPageID = currentPage->GetNextPage();
             if(currentPageID == INVALID_PAGE){
 				//no more pages
 				this->done = true;
+				std::cout << "ALDASFAHFHSF" << std::endl;
                 UNPIN(currentPage->PageNo(), CLEAN);
+				std::cout << "UNPIN 22312: " << currentPage->PageNo() << std::endl;
+				delete scan;
                 return DONE;
             }
+			delete scan;
             UNPIN(currentPage->PageNo(), CLEAN);
-            /*if(MINIBASE_BM->PinPage(currentPageID, (Page*&)currentPage) != OK){
-				// ???
-				this->done = true;
-                rid.pageNo = INVALID_PAGE;
-                rid.slotNo = -1;
-                return DONE;
-            }else{*/
-				// Do check process above again???
-				this->_SetIter();
-			//}
+			std::cout << "UNPIN 01010: " << currentPage->PageNo() << std::endl;
+			this->_SetIter();
+			return OK;
 		}
 	}
-	return FAIL;//!!!!!! shouldn't be needed???
 }
 
 
@@ -110,26 +101,21 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
 // Return  : OK 
 //-------------------------------------------------------------------
 Status BTreeFileScan::DeleteCurrent () {  
-	//Add your code here. 
-	return OK; //changed
+	if (done) {
+		return DONE;
+	}
+	PIN(currentPageID, currentPage);
+	Status s = scan->DeleteCurrent();
+	UNPIN(currentPageID, DIRTY);
+	return s;
 }
 
 Status BTreeFileScan::_SetIter() {  
     PIN(currentPageID, currentPage);
+	std::cout << "PIN YAYAY: " << currentPageID << std::endl;
 	scan = new PageKVScan<RecordID>();
-	currentPage->Search(lowKey, *scan);
-	
-	//BELOW is just testing
-	//char* keyPtr;
-	//RecordID rid;
-	//Status s = scan->GetNext(keyPtr, rid);
-	//s = scan->DeleteCurrent();
-	std::cout << "GOT 0" << std::endl;
-	//END TESTING
+	currentPage->OpenScan(scan);
+	UNPIN(currentPageID, CLEAN);
 
-//	if((currentPage->Search(lowKey, *scan))==DONE){ //check if fail?
-		//move one more?
-//	}
-	// UNPIN((currentRecord.pageNo), CLEAN);
 	return OK;
 }

@@ -81,6 +81,8 @@ Status BTreeFile::DestroyFile() {
 		scan->DeleteCurrent();
 	}*/
 
+	cout << "DestroyFile()" << endl;
+
 	PageID rootPid;
 	Status s;
 	rootPid = header->GetRootPageID();
@@ -174,7 +176,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 	if(rootPid == INVALID_PAGE) {
 		cout << "No Root, creating" << endl;
 		LeafPage* leafpage;
-		s = MINIBASE_BM->NewPage(rootPid, (Page*&)leafpage);
+		s = MINIBASE_BM->NewPage(rootPid, (Page*&)leafpage); // also PINs
 		if(s == OK){
 			// Need to initialize?
 			leafpage->Init(rootPid, LEAF_PAGE);
@@ -245,6 +247,12 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 
 			this->header->SetRootPageID(newIndexPid);
 
+			IndexPage* indexPage = (IndexPage*) currPage;
+			char* minKey2;
+			PageID minVal;
+			indexPage->GetMinKeyValue(minKey2, minVal); // might be key
+			indexPage->SetPrevPage(minVal);
+
 			UNPIN(newIndexPid, DIRTY);
 			UNPIN(rootPid, DIRTY);
 		}
@@ -313,6 +321,11 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 				
 				UNPIN(newIndexPid, DIRTY);
 			}
+
+			char* minKey2;
+			PageID minVal;
+			indexPage->GetMinKeyValue(minKey2, minVal); // might be key
+			indexPage->SetPrevPage(minVal);
 
 			UNPIN(currPid, DIRTY);
 			return s;
@@ -553,20 +566,14 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 		}
 	}
 	
-	// prev/next pointers
-	PageID oldNextPageID = oldPage->GetNextPage();
-	ResizableRecordPage* oldNextPage;
-	if (oldNextPageID != INVALID_PAGE) {
-		PIN(oldNextPageID, oldNextPage);
-	}
+	char* minKey;
+	PageID minVal;
 
-	oldPage->SetNextPage(newPage->PageNo());
-	newPage->SetPrevPage(oldPage->PageNo());
+	oldPage->GetMinKeyValue(minKey, minVal);
+	oldPage->SetPrevPage(minVal);
 
-	if (oldNextPageID != INVALID_PAGE) {
-		oldNextPage->SetPrevPage(newPage->PageNo());
-		newPage->SetNextPage(oldNextPageID);
-	}
+	newPage->GetMinKeyValue(minKey, minVal);
+	newPage->SetPrevPage(minVal);
 
 	return ds;
 }
@@ -597,10 +604,19 @@ BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
 	if (header->GetRootPageID() != INVALID_PAGE) {
 		PageID lowIndex;
 		Status s;
+
+		if (lowKey == NULL) {
+			//NONTRIVIAL CASE:
+			newScan->done = false;
+			newScan->lowKey = lowKey;
+			newScan->highKey = highKey;
+			newScan->currentPageID = this->GetLeftLeaf();
+		    newScan->_SetIter();
+			return newScan; 
+		}
+
 		s = _searchTree(lowKey,  header->GetRootPageID(), lowIndex); //look for lowIndex
-		if (s != OK)
-		{
-			//maybe just return NULL
+		if (s != OK) { //maybe just return NULL
 			newScan->done = true; //??? SHOULD FAIL instead????
 			newScan->lowKey = lowKey;
 			newScan->highKey = highKey;
@@ -614,7 +630,7 @@ BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
 			newScan->highKey = highKey;
 			newScan->currentPageID = lowIndex;
 		    newScan->_SetIter();
-			std::cout << "OPENED OK" << std::endl;
+			//std::cout << "OPENED OK" << std::endl;
 			return newScan; 
 		}
 	} else {
@@ -629,37 +645,37 @@ BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
 
 Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex)
 {
-	std::cerr << "SearchTree" << std::endl;
+	//std::cerr << "SearchTree" << std::endl;
     ResizableRecordPage *page;
 	Status s;
     PIN (currentID, page);
-    if (page->GetType()==INDEX_PAGE){
-		s =	_searchIndexNode(key,  currentID, (IndexPage*)page, lowIndex);
-	}
-	else if(page->GetType()==LEAF_PAGE){
+    if (page->GetType()==INDEX_PAGE) {
+		s =	_searchIndexNode(key, currentID, (IndexPage*)page, lowIndex);
+
+		return s;
+	} else if(page->GetType()==LEAF_PAGE) {
 		lowIndex = page->PageNo();
 		UNPIN(currentID,CLEAN);
-	}
-	else
+	} else {
 		return FAIL;
+	}
 	return OK;
 }
 
 Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex)
 {
-	std::cerr << "SearchIndex" << std::endl;
+	//std::cerr << "SearchIndex" << std::endl;
 	PageID nextPid;
 	PageKVScan<PageID>* iter = new PageKVScan<PageID>();
-	//currIndex->OpenScan(iter); //NOT NEEDED??
 	currentIndex->Search(key, *iter);
 	char * c;
-	iter->GetNext(c, nextPid); //NEXT???   NEED to check if Fail
-	// may need to deallocate iter *************
+	iter->GetNext(c, nextPid);
+	delete iter;
 	UNPIN(currentID, CLEAN);
-	Status s = _searchTree (key, nextPid, lowIndex);
+	Status s = _searchTree(key, nextPid, lowIndex);
 	if (s == FAIL)
 		return FAIL;
-	return OK;
+	return s;
 }
 
 //-------------------------------------------------------------------
@@ -679,6 +695,7 @@ PageID BTreeFile::GetLeftLeaf() {
 			std::cerr << "Error pinning page in GetLeftLeaf." << std::endl;
 			return INVALID_PAGE;
 		}
+		cout << "PIN: " << leafPid << endl;
 		//If we have reached a leaf page, then we are done.
 		if(rrp->GetType() == LEAF_PAGE) {
 			break;
@@ -690,6 +707,7 @@ PageID BTreeFile::GetLeftLeaf() {
 				std::cerr << "Error unpinning page in OpenScan." << std::endl;
 				return INVALID_PAGE;
 			}
+			cout << "UNPIN: " << leafPid << endl;
 			leafPid = tempPid;
 		}
 	}
@@ -697,6 +715,7 @@ PageID BTreeFile::GetLeftLeaf() {
 		std::cerr << "Error unpinning page in OpenScan." << std::endl;
 		return INVALID_PAGE;
 	}
+	cout << "UNPIN: " << leafPid << endl;
 	return leafPid;
 }
 

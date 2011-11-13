@@ -485,17 +485,21 @@ bool BTreeDriver::TestSinglePage() {
 
 	std::cout << "Inserting 59 initial keys..."	<< std::endl;
 	res = InsertRange(btf, 1, 59);
-	std::cout << "Got Here" << std::endl;
 	res = res && TestNumLeafPages(btf, 1);
-	std::cout << "Got Here" << std::endl;
 	res = res && TestNumEntries(btf, 59);
 
+	std::cout << "RES 1: " << res << std::endl;
 
 	std::cout << "Checking a few individual keys..." << std::endl;
 	res = res && TestAbsent(btf, 0);
+	std::cout << "RES 1.2: " << res << std::endl;
 	res = res && TestPresent(btf, 2);
+	std::cout << "RES 1.4: " << res << std::endl;
 	res = res && TestPresent(btf, 59);
+	std::cout << "RES 1.6: " << res << std::endl;
 	res = res && TestAbsent(btf, 60);
+
+	std::cout << "RES 2: " << res << std::endl;
 
 	std::cout << "Checking scans..." << std::endl;
 
@@ -519,7 +523,7 @@ bool BTreeDriver::TestSinglePage() {
 	res = res && TestScanCount(scan, 5);
 	delete scan;
 
-
+	std::cout << "RES 3: " << res << std::endl;
 
 	// We destroy and rebuild the file before to reduce 
 	// dependence on working Delete function.

@@ -599,6 +599,8 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 
 	res = res && TestBalance(btf, leftPage, rightPage);
 
+	std::cout << "RES 3: " << res << std::endl;
+
 	if(MINIBASE_BM->UnpinPage(leftPid, CLEAN) == FAIL) {
 		std::cerr << "Error unpinning left leaf page." << std::endl;
 		res = false;
@@ -609,7 +611,7 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 		res = false;
 	}
 
-
+	std::cout << "RES 4: " << res << std::endl;
 
 
 	// We destroy and rebuild the file before to reduce 
@@ -632,21 +634,23 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	std::cout << "Inserting 30 large keys..."	<< std::endl;
 	res = InsertRange(btf, 2, 31, 1, 20);
 
-
+	std::cout << "RES 6: " << res << std::endl;
 
 	res = res && TestNumLeafPages(btf, 1);
 	res = res && TestNumEntries(btf, 30);
+
+	std::cout << "RES 7: " << res << std::endl;
 
 	//Should cause split. 
 	std::cout << "Causing split with new key in left node..."	<< std::endl;
 	res = res && InsertKey(btf, 1, 1, 20);
 
-
+	std::cout << "RES 8: " << res << std::endl;
 
 	res = res && TestNumLeafPages(btf, 2);
 	res = res && TestNumEntries(btf, 31);
 
-
+	std::cout << "RES 9: " << res << std::endl;
 
 	leftPid = btf->GetLeftLeaf();
 	if(MINIBASE_BM->PinPage(leftPid, (Page*&) leftPage) == FAIL) {
@@ -685,18 +689,34 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 		exit(1);
 	}
 
+	std::cout << "RES 10: " << res << std::endl;
+
 	std::cout << "Begining tests with duplicate keys..." << std::endl;
 
 	res = res && InsertDuplicates(btf, 5, 121, 1, 30);
+
+	std::cout << "RES 10.2: " << res << std::endl;
+
 	res = res && TestNumLeafPages(btf, 1);
+
+	std::cout << "RES 10.4: " << res << std::endl;
+
 	res = res && TestNumEntries(btf, 121);
+
+	std::cout << "RES 11: " << res << std::endl;
 
 	std::cout << "Causing Split..." << std::endl;	
 	res = res && InsertKey(btf, 5, 121, 30);
 
+	std::cout << "RES 11.2: " << res << std::endl;
+
 	res = res && TestNumLeafPages(btf, 2);
+
+	std::cout << "RES 11.4: " << res << std::endl;
+
 	res = res && TestNumEntries(btf, 122);
 
+	std::cout << "RES 11.6: " << res << std::endl;
 
 	leftPid = btf->GetLeftLeaf();
 	if(MINIBASE_BM->PinPage(leftPid, (Page*&) leftPage) == FAIL) {

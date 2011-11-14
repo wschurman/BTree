@@ -42,7 +42,8 @@ BTreeFileScan::BTreeFileScan() {
 //-------------------------------------------------------------------
 
 Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
-{	PIN(currentPageID, currentPage);
+{	
+	PIN(currentPageID, currentPage);
     if(this->done){
 		return DONE;
     }
@@ -79,7 +80,7 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
 			delete scan;
             UNPIN(currentPage->PageNo(), CLEAN);
 			this->_SetIter();
-			return OK;
+			return GetNext(rid, keyPtr);
 		}
 	}
 }

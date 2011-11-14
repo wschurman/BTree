@@ -204,9 +204,27 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 		s = this->InsertHelper(currPid, split, new_child_key, new_child_pageid, key, rid);
 
 		if (split == NEEDS_SPLIT) { // needs to split root
-			cout << "Needs to split root" << endl;
+
+			// possibly put in if free space
 			ResizableRecordPage* currPage;
 			PIN(rootPid, currPage);
+
+			if (currPage->GetType() == INDEX_PAGE) { // room in index page
+				IndexPage* indexPage = (IndexPage*) currPage;
+				if (indexPage->Insert(new_child_key, new_child_pageid) == OK) {
+					cout << "Room in root index page" << endl;
+					IndexPage* indexPage = (IndexPage*) currPage;
+					char* minKey2;
+					PageID minVal;
+					indexPage->GetMinKeyValue(minKey2, minVal); // might be key
+					indexPage->SetPrevPage(minVal);
+
+					UNPIN(rootPid, DIRTY);
+					return s;
+				}
+			}
+			cout << "Needs to split root" << endl;
+				
 
 			// new root
 			IndexPage* newIndexPage;
@@ -267,6 +285,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 
 //recursive helper function, the bool return type and parentPid is used for splitting recursively, i.e. if it returns 
 Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid) {
+	cout << "Insert Helper, currPid: " << currPid << " key: " << key << endl;
 	ResizableRecordPage* currPage;
 	PageID nextPid;
 	Status s = OK;
@@ -286,16 +305,20 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 		indexPage->Search(key, *iter);
 		char * c;
 		iter->GetNext(c, nextPid);
-		// may need to deallocate iter
+
 		delete iter;
 		
 		s = this->InsertHelper(nextPid, split, new_child_key, new_child_pageid, key, rid); // traverse to child
 
 		if (split == NEEDS_SPLIT) {
+
+			cout << "Child of this split" << endl;
 			// split this child index node, will need to insert new leftval into this Index page with
 			// pointer to new child node
 
 			if (indexPage->Insert(new_child_key, new_child_pageid) != OK) {
+
+				cout << "needed to split self" << endl;
 				// split this page.
 
 				// make new page
@@ -376,7 +399,7 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 
 Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid) {
 
-	//cout << "Call to split leaf page" << endl;
+	cout << "Call to split leaf page" << endl;
 	Status s1 = OK;
 	// replace scans with pointer swapping in the future
 	PageKVScan<RecordID>* oldScan = new PageKVScan<RecordID>();
@@ -482,7 +505,7 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 
 // Lots of duplicated code, may try to template out
 Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid) {
-	//cout << "Call to splitindexpage" << endl;
+	cout << "Call to splitindexpage" << endl;
 
 	Status s1 = OK;
 
@@ -695,7 +718,6 @@ PageID BTreeFile::GetLeftLeaf() {
 			std::cerr << "Error pinning page in GetLeftLeaf." << std::endl;
 			return INVALID_PAGE;
 		}
-		cout << "PIN: " << leafPid << endl;
 		//If we have reached a leaf page, then we are done.
 		if(rrp->GetType() == LEAF_PAGE) {
 			break;
@@ -707,7 +729,6 @@ PageID BTreeFile::GetLeftLeaf() {
 				std::cerr << "Error unpinning page in OpenScan." << std::endl;
 				return INVALID_PAGE;
 			}
-			cout << "UNPIN: " << leafPid << endl;
 			leafPid = tempPid;
 		}
 	}
@@ -715,7 +736,6 @@ PageID BTreeFile::GetLeftLeaf() {
 		std::cerr << "Error unpinning page in OpenScan." << std::endl;
 		return INVALID_PAGE;
 	}
-	cout << "UNPIN: " << leafPid << endl;
 	return leafPid;
 }
 

@@ -65,7 +65,6 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
                 rid.pageNo = INVALID_PAGE;
                 rid.slotNo = -1;
                 UNPIN(currentPageID, CLEAN);
-				std::cout << "UNPIN LALALA: " << currentPageID << std::endl;
                 return DONE;
             }
 		} else { // s == DONE; current scanned page = done
@@ -73,15 +72,12 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
             if(currentPageID == INVALID_PAGE){
 				//no more pages
 				this->done = true;
-				std::cout << "ALDASFAHFHSF" << std::endl;
                 UNPIN(currentPage->PageNo(), CLEAN);
-				std::cout << "UNPIN 22312: " << currentPage->PageNo() << std::endl;
 				delete scan;
                 return DONE;
             }
 			delete scan;
             UNPIN(currentPage->PageNo(), CLEAN);
-			std::cout << "UNPIN 01010: " << currentPage->PageNo() << std::endl;
 			this->_SetIter();
 			return OK;
 		}
@@ -112,7 +108,6 @@ Status BTreeFileScan::DeleteCurrent () {
 
 Status BTreeFileScan::_SetIter() {  
     PIN(currentPageID, currentPage);
-	std::cout << "PIN YAYAY: " << currentPageID << std::endl;
 	scan = new PageKVScan<RecordID>();
 	currentPage->OpenScan(scan);
 	UNPIN(currentPageID, CLEAN);

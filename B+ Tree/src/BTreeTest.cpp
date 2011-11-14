@@ -492,11 +492,8 @@ bool BTreeDriver::TestSinglePage() {
 
 	std::cout << "Checking a few individual keys..." << std::endl;
 	res = res && TestAbsent(btf, 0);
-	std::cout << "RES 1.2: " << res << std::endl;
 	res = res && TestPresent(btf, 2);
-	std::cout << "RES 1.4: " << res << std::endl;
 	res = res && TestPresent(btf, 59);
-	std::cout << "RES 1.6: " << res << std::endl;
 	res = res && TestAbsent(btf, 60);
 
 	std::cout << "RES 2: " << res << std::endl;
@@ -545,6 +542,8 @@ bool BTreeDriver::TestSinglePage() {
 	res = res && TestNumLeafPages(btf, 1);
 	res = res && TestNumEntries(btf, 124);
 
+	std::cout << "RES 4: " << res << std::endl;
+
 	if(btf->DestroyFile() != OK) {
 		std::cerr << "Error destroying BTreeFile" << std::endl;
 		res = false;
@@ -573,13 +572,17 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	res = res && TestNumLeafPages(btf, 1);
 	res = res && TestNumEntries(btf, 30);
 
+	std::cout << "RES 1: " << res << std::endl;
 
 	//Should cause split. 
 	std::cout << "Causing split with new key in right node..."	<< std::endl;
 	res = res && InsertKey(btf, 31, 1, 20);
+	std::cout << "RES 1.2: " << res << std::endl;
 	res = res && TestNumLeafPages(btf, 2);
+	std::cout << "RES 1.4: " << res << std::endl;
 	res = res && TestNumEntries(btf, 31);
 	
+	std::cout << "RES 2: " << res << std::endl;
 
 	PageID leftPid = btf->GetLeftLeaf();
 

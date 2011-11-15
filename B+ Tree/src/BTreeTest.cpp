@@ -856,6 +856,7 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	res = res && TestNumEntries(btf, key);
 
+	std::cout << "RES 3: " << res << std::endl;
 
 	if(btf->DestroyFile() != OK) {
 		std::cerr << "Error destroying BTreeFile" << std::endl;

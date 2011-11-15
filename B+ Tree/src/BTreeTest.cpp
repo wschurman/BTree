@@ -391,6 +391,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 								  
 	int leftSpace = left->AvailableSpace();
 	int rightSpace = right->AvailableSpace();
+	std::cout << "Left Avail: " << leftSpace << " Right Avail: " << rightSpace << std::endl;
 	int slotSize = left->AvailableSpaceForAppend() - leftSpace;
 
 	char* leftMax;
@@ -801,6 +802,8 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 		res = res && InsertKey(btf, key, 1, 20);
 		newRootId = btf->header->GetRootPageID();
 
+		//std::cout << "RES 2.05: " << res << std::endl;
+
 		// there was a split. Check balance. 
 		if(newRootId != rootId) {
 			IndexPage* ip;
@@ -872,7 +875,7 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 	}
 
 	delete btf;
-
+	
 	btf = new BTreeFile(status, "BTreeTest2");
 	if (status != OK) {
 		minibase_errors.show_errors();
@@ -881,11 +884,19 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	std::cout << "Begining tests with duplicate keys..." << std::endl;
 
+	std::cout << "RES 4: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 5, 122, 1, 30);
+
+	std::cout << "RES 4.2: " << res << std::endl;
+
 	res = res && TestNumLeafPages(btf, 2);
+
+	std::cout << "RES 4.4: " << res << std::endl;
+
 	res = res && TestNumEntries(btf, 122);
 
+	std::cout << "RES 4.6: " << res << std::endl;
 
 	std::cout << "Inserting duplicate keys until root splits." << std::endl;
 	//Insert keys until the root splits.

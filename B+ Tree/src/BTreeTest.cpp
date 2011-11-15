@@ -777,8 +777,13 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	std::cout << "Inserting 31 large keys..."	<< std::endl;
 	res = InsertRange(btf, 1, 31, 1, 20);
+
+	std::cout << "RES 1: " << res << std::endl;
+
 	res = res && TestNumLeafPages(btf, 2);
 	res = res && TestNumEntries(btf, 31);
+
+	std::cout << "RES 2: " << res << std::endl;
 
 	std::cout << "Inserting keys until root splits." << std::endl;
 
@@ -966,21 +971,27 @@ bool BTreeDriver::TestModifiedInserts() {
 
 	res = InsertDuplicates(btf, 1, 60, 1, 30);
 
+	std::cout << "RES 1: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 3, 55, 1, 30);
 	res = res && InsertDuplicates(btf, 7, 65, 1, 30);
 
+	std::cout << "RES 2: " << res << std::endl;
+
 	res = res && TestNumLeafPages(btf, 3);
 	res = res && TestNumEntries(btf, 180);
+
+	std::cout << "RES 3: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 4, 75, 1, 30);	
 	res = res && TestNumLeafPages(btf, 4);
 	res = res && TestNumEntries(btf, 255);
 
+	std::cout << "RES 4: " << res << std::endl;
+
 	char searchKey[MAX_KEY_LENGTH];
 	toString(4, searchKey, 30);
 	
-
 	BTreeFileScan* scan = btf->OpenScan(searchKey, searchKey);
 	res = res && TestScanCount(scan, 75);
 	

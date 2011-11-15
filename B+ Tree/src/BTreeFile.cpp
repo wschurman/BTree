@@ -261,7 +261,8 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 					newIndexPage->SetPrevPage(INVALID_PAGE);
 
 					Status s2;
-					s2 = this->SplitIndexPage(indexPage, newIndexPage, new_child_key, new_child_pageid);
+					char * new_page_key;
+					s2 = this->SplitIndexPage(indexPage, newIndexPage, new_child_key, new_child_pageid, new_page_key);
 					if (s2 != OK) {
 						cout << "Error in Split Index" << endl;
 						return s2;
@@ -275,7 +276,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 					}
 
 					s2 = newRoot->Insert(minKey, rootPid);
-					s2 = newRoot->Insert(new_child_key, new_child_pageid);
+					s2 = newRoot->Insert(new_page_key, new_child_pageid);
 					if (s2 != OK) {
 						cout << "Error inserting into new root" << endl;
 						return s2;
@@ -444,17 +445,16 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 				newIndexPage->Init(newIndexPid, INDEX_PAGE);
 				newIndexPage->SetNextPage(INVALID_PAGE);
 				newIndexPage->SetPrevPage(INVALID_PAGE);
-				s2 = this->SplitIndexPage(indexPage, newIndexPage, new_child_key, new_child_pageid);
+				char * new_page_key;
+				s2 = this->SplitIndexPage(indexPage, newIndexPage, new_child_key, new_child_pageid, new_page_key);
 				if (s2 != OK) {
 					cout << "Error in Split Index" << endl;
 					return s2;
 				}
 
 				st = NEEDS_SPLIT; // propagate up a level of recursion
-				newIndexPage->GetMinKey(newChildKey);
+				newChildKey = new_page_key;
 				newChildPageID = newIndexPid;
-
-				newIndexPage->DeleteKey(newChildKey);
 				
 				UNPIN(newIndexPid, DIRTY);
 			}
@@ -520,6 +520,8 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 				cout << "Error in Split Leaf" << endl;
 				return s2;
 			}
+
+			cout << "OldAvail: " << leafPage->AvailableSpace() << "NewAvail: " << newLeafPage->AvailableSpace() << endl;
 
 			//cout << "leafPage size should be 30: " << leafPage->GetNumOfRecords() << endl;
 			//cout << "newLeafPage size should be 30: " << newLeafPage->GetNumOfRecords() << endl;
@@ -650,8 +652,8 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 	return ds;
 }
 
-// Lots of duplicated code, may try to template out
-Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid) {
+// Lots of duplicated code, may try to template out, newPageKey is the min val of the new page that was removed from the new page
+Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid, char *&newPageKey) {
 	cout << "Call to splitindexpage" << endl;
 
 	Status s1 = OK;
@@ -698,7 +700,17 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 		return s1;
 	}
 
+	char* minKey;
+	PageID minVal;
+
+	newPage->GetMinKeyValue(minKey, minVal);
+	newPage->SetPrevPage(minVal);
+
+	newPageKey = minKey;
+	newPage->DeleteKey(minKey);
+
 	while (oldPage->AvailableSpace() > newPage->AvailableSpace()) {
+		//cout << "OldAvail: " << oldPage->AvailableSpace() << "NewAvail: " << newPage->AvailableSpace() << endl;
 		if (strcmp(currKey, key) > 0 && insertedNew == false) { // currKey > key
 			ds = oldPage->Insert(key, rid);
 			if (ds != OK) {
@@ -734,19 +746,20 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 		}
 	}
 	
-	char* minKey;
-	PageID minVal;
+	
 
-	oldPage->GetMinKeyValue(minKey, minVal);
-	oldPage->SetPrevPage(minVal);
-
-	newPage->GetMinKeyValue(minKey, minVal);
-	newPage->SetPrevPage(minVal);
+	// might need
+	//oldPage->GetMinKeyValue(minKey, minVal);
+	//oldPage->SetPrevPage(minVal);
 
 
 	return ds;
 }
 
+Status BTreeFile::BalanceIndexPages(IndexPage* left, IndexPage* right) {
+	
+	return OK;
+}
 
 //-------------------------------------------------------------------
 // BTreeFile::OpenScan

@@ -83,6 +83,7 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
 			return GetNext(rid, keyPtr);
 		}
 	}
+	return DONE;
 }
 
 

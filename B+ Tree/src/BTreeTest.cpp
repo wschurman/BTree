@@ -374,6 +374,7 @@ bool BTreeDriver::TestNumEntries(BTreeFile* btf, int expected) {
 }
 
 
+
 //-------------------------------------------------------------------
 // BTreeDriver::TestBalance
 //
@@ -418,7 +419,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		if(strcmp(leftMax, rightMin) == 0) {
 			if(diff > sizeof(RecordID)) {
 				std::cerr << "Could have moved a record from left to right"
-					      << "and reduced difference in freespace. " 
+					      << "and reduced difference in freespace. 1" 
  						  << std::endl;
 				return false;
 			}
@@ -427,7 +428,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		else {
 			if(diff > (int)sizeof(RecordID) + (int)strlen(leftMax) + 1 + slotSize) {
 				std::cerr << "Could have moved a record from left to right"
-					      << "and reduced difference in freespace. " 
+					      << "and reduced difference in freespace. 2" 
  						  << std::endl;
 				return false;
 			}
@@ -442,7 +443,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		if(strcmp(leftMax, rightMin) == 0) {
 			if(diff > sizeof(RecordID)) {
 				std::cerr << "Could have moved a record from right to left"
-					      << "and reduced difference in freespace. " 
+					      << "and reduced difference in freespace. 1" 
  						  << std::endl;
 				return false;
 			}
@@ -451,7 +452,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		else {
 			if(diff > (int)sizeof(RecordID) + (int)strlen(leftMax) + 1 + slotSize) {
 				std::cerr << "Could have moved a record from right to left"
-					      << "and reduced difference in freespace. " 
+					      << "and reduced difference in freespace. 2" 
  						  << std::endl;
 				return false;
 			}
@@ -815,6 +816,8 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 				res = false;
 			}
 
+			std::cout << "RES 2.1: " << res << std::endl;
+
 			leftPid = ip->GetPrevPage();
 
 			char* rightKey;
@@ -830,7 +833,11 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 				res = false;
 			}
 
+			std::cout << "RES 2.2: " << res << std::endl;
+
 			res = res && TestBalance(btf, leftPage, rightPage);
+
+			std::cout << "RES 2.3: " << res << std::endl;
 			
 			if(MINIBASE_BM->UnpinPage(leftPid, CLEAN) == FAIL) {
 				std::cerr << "Error unpinning left leaf page." << std::endl;
@@ -847,6 +854,7 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 				res = false;
 			}
 
+			std::cout << "RES 2.4: " << res << std::endl;
 
 			break;
 		}

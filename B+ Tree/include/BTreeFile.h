@@ -38,7 +38,8 @@ private:
 	Status BTreeFile::DestroyHelper(PageID currPid);
 	Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid);
 	Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid);
-	Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid);
+	Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid, char *&newPageKey);
+	Status BTreeFile::BalanceIndexPages(IndexPage* left, IndexPage* right);
 
 	//Please don't delete this method. It's used for testing, 
 	// and may be useful for you.

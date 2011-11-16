@@ -391,7 +391,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 								  
 	int leftSpace = left->AvailableSpace();
 	int rightSpace = right->AvailableSpace();
-	std::cout << "Left Avail: " << leftSpace << " Right Avail: " << rightSpace << std::endl;
+	//std::cout << "Left Avail: " << leftSpace << " Right Avail: " << rightSpace << std::endl;
 	int slotSize = left->AvailableSpaceForAppend() - leftSpace;
 
 	char* leftMax;

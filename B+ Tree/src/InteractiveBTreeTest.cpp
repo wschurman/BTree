@@ -45,6 +45,11 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 			in >> low >> high ;
 			insertHighLow(btf,low,high);
 		}
+		else if(!strcmp(command, "insertrev")) {
+			int val, num;
+			in >> val >> num;
+			insertHighLowReverse(btf,val,num);
+		}
 		else if(!strcmp(command, "insertdup")) {
 			int val, num;
 			in >> val >> num;
@@ -166,7 +171,21 @@ void InteractiveBTreeTest::insertHighLow(BTreeFile *btf, int low, int high) {
 	else {
 		cout << "Insert failed." << endl;
 	}
+}
 
+void InteractiveBTreeTest::insertHighLowReverse(BTreeFile *btf, int low, int high) {
+	
+	int numkey=high-low+1;
+	cout << "Inserting: ("<<low<<" to "<<high<<") in reverse"<<endl;
+
+	bool res = BTreeDriver::InsertRange(btf, low, high, lastOffset++, 4, true);
+
+	if(res) {
+		cout << "  Success."<<endl;
+	}		
+	else {
+		cout << "Insert failed." << endl;
+	}
 }
 
 void InteractiveBTreeTest::insertDups(BTreeFile *btf, int key, int num) {

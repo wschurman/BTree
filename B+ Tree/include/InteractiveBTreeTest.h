@@ -17,6 +17,7 @@ public:
 	void destroyIndex(BTreeFile *btf, char *name);
 
 	void insertHighLow(BTreeFile *btf, int low, int high);
+	void insertHighLowReverse(BTreeFile *btf, int low, int high);
 	void insertDups(BTreeFile *btf, int key, int num);
 	void scanHighLow(BTreeFile *btf, int low, int high);
 };

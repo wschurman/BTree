@@ -1043,14 +1043,22 @@ bool BTreeDriver::TestLargeWorkload() {
 	res = InsertRange(btf, 1, 1000, 1, 5, true);
 	res = res && TestNumEntries(btf, 1000);
 
+	std::cout << "RES 1: " << res << std::endl;
+
 	res = InsertRange(btf, 1, 1000, 2, 5, false);
 	res = res && TestNumEntries(btf, 2000);
+
+	std::cout << "RES 2: " << res << std::endl;
 
 	res = InsertRange(btf, 501, 1500, 3, 5, false);
 	res = res && TestNumEntries(btf, 3000);
 
+	std::cout << "RES 3: " << res << std::endl;
+
 	res = InsertRange(btf, 2001, 4000, 1, 5, false);
 	res = res && TestNumEntries(btf, 5000);
+
+	std::cout << "RES 4: " << res << std::endl;
 
 	char low[MAX_KEY_LENGTH];
 	char high[MAX_KEY_LENGTH];

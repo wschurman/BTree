@@ -1,5 +1,6 @@
 #include "BTreeTest.h"
 #include "bufmgr.h"
+#include <ctime>
 #include <vector>
 
 //-------------------------------------------------------------------
@@ -299,7 +300,7 @@ bool BTreeDriver::TestNumLeafPages(BTreeFile* btf, int expected) {
 
 	while(pid != INVALID_PAGE) {
 		numPages++;
-		
+
 
 		LeafPage* leaf;
 		if(MINIBASE_BM->PinPage(pid, (Page*&)leaf) == FAIL) {
@@ -374,7 +375,6 @@ bool BTreeDriver::TestNumEntries(BTreeFile* btf, int expected) {
 }
 
 
-
 //-------------------------------------------------------------------
 // BTreeDriver::TestBalance
 //
@@ -388,10 +388,9 @@ bool BTreeDriver::TestNumEntries(BTreeFile* btf, int expected) {
 bool BTreeDriver::TestBalance(BTreeFile* btf, 
 	                          ResizableRecordPage* left, 
  							  ResizableRecordPage* right) {
-								  
+
 	int leftSpace = left->AvailableSpace();
 	int rightSpace = right->AvailableSpace();
-	//std::cout << "Left Avail: " << leftSpace << " Right Avail: " << rightSpace << std::endl;
 	int slotSize = left->AvailableSpaceForAppend() - leftSpace;
 
 	char* leftMax;
@@ -415,12 +414,12 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 	// available space without changing which one has more
 	if(leftSpace < rightSpace) {
 		int diff = rightSpace - leftSpace;
-		
+
 		// We can move a key/value pair without creating a new slot/key.
 		if(strcmp(leftMax, rightMin) == 0) {
 			if(diff > sizeof(RecordID)) {
 				std::cerr << "Could have moved a record from left to right"
-					      << "and reduced difference in freespace. 1" 
+					      << "and reduced difference in freespace. " 
  						  << std::endl;
 				return false;
 			}
@@ -429,7 +428,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		else {
 			if(diff > (int)sizeof(RecordID) + (int)strlen(leftMax) + 1 + slotSize) {
 				std::cerr << "Could have moved a record from left to right"
-					      << "and reduced difference in freespace. 2" 
+					      << "and reduced difference in freespace. " 
  						  << std::endl;
 				return false;
 			}
@@ -439,12 +438,12 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 	}
 	else if(rightSpace < leftSpace)  {
 		int diff = leftSpace - rightSpace;
-		
+
 		// We can move a key/value pair without creating a new slot/key.
 		if(strcmp(leftMax, rightMin) == 0) {
 			if(diff > sizeof(RecordID)) {
 				std::cerr << "Could have moved a record from right to left"
-					      << "and reduced difference in freespace. 1" 
+					      << "and reduced difference in freespace. " 
  						  << std::endl;
 				return false;
 			}
@@ -453,7 +452,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 		else {
 			if(diff > (int)sizeof(RecordID) + (int)strlen(leftMax) + 1 + slotSize) {
 				std::cerr << "Could have moved a record from right to left"
-					      << "and reduced difference in freespace. 2" 
+					      << "and reduced difference in freespace. " 
  						  << std::endl;
 				return false;
 			}
@@ -474,7 +473,7 @@ bool BTreeDriver::TestBalance(BTreeFile* btf,
 bool BTreeDriver::TestSinglePage() {
 	Status status;
 	BTreeFile *btf;
-	
+
 	btf = new BTreeFile(status, "BTreeTest1");
 	if (status != OK) {
 		minibase_errors.show_errors();
@@ -583,7 +582,7 @@ bool BTreeDriver::TestInsertsWithLeafSplits() {
 	res = res && TestNumLeafPages(btf, 2);
 	std::cout << "RES 1.4: " << res << std::endl;
 	res = res && TestNumEntries(btf, 31);
-	
+
 	std::cout << "RES 2: " << res << std::endl;
 
 	PageID leftPid = btf->GetLeftLeaf();
@@ -779,13 +778,8 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	std::cout << "Inserting 31 large keys..."	<< std::endl;
 	res = InsertRange(btf, 1, 31, 1, 20);
-
-	std::cout << "RES 1: " << res << std::endl;
-
 	res = res && TestNumLeafPages(btf, 2);
 	res = res && TestNumEntries(btf, 31);
-
-	std::cout << "RES 2: " << res << std::endl;
 
 	std::cout << "Inserting keys until root splits." << std::endl;
 
@@ -802,8 +796,6 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 		res = res && InsertKey(btf, key, 1, 20);
 		newRootId = btf->header->GetRootPageID();
 
-		//std::cout << "RES 2.05: " << res << std::endl;
-
 		// there was a split. Check balance. 
 		if(newRootId != rootId) {
 			IndexPage* ip;
@@ -818,8 +810,6 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
   					      << ip->GetNumOfRecords() << std::endl;
 				res = false;
 			}
-
-			std::cout << "RES 2.1: " << res << std::endl;
 
 			leftPid = ip->GetPrevPage();
 
@@ -836,12 +826,8 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 				res = false;
 			}
 
-			std::cout << "RES 2.2: " << res << std::endl;
-
 			res = res && TestBalance(btf, leftPage, rightPage);
 
-			std::cout << "RES 2.3: " << res << std::endl;
-			
 			if(MINIBASE_BM->UnpinPage(leftPid, CLEAN) == FAIL) {
 				std::cerr << "Error unpinning left leaf page." << std::endl;
 				res = false;
@@ -857,7 +843,6 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 				res = false;
 			}
 
-			std::cout << "RES 2.4: " << res << std::endl;
 
 			break;
 		}
@@ -867,7 +852,6 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	res = res && TestNumEntries(btf, key);
 
-	std::cout << "RES 3: " << res << std::endl;
 
 	if(btf->DestroyFile() != OK) {
 		std::cerr << "Error destroying BTreeFile" << std::endl;
@@ -875,7 +859,7 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 	}
 
 	delete btf;
-	
+
 	btf = new BTreeFile(status, "BTreeTest2");
 	if (status != OK) {
 		minibase_errors.show_errors();
@@ -884,19 +868,11 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 
 	std::cout << "Begining tests with duplicate keys..." << std::endl;
 
-	std::cout << "RES 4: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 5, 122, 1, 30);
-
-	std::cout << "RES 4.2: " << res << std::endl;
-
 	res = res && TestNumLeafPages(btf, 2);
-
-	std::cout << "RES 4.4: " << res << std::endl;
-
 	res = res && TestNumEntries(btf, 122);
 
-	std::cout << "RES 4.6: " << res << std::endl;
 
 	std::cout << "Inserting duplicate keys until root splits." << std::endl;
 	//Insert keys until the root splits.
@@ -937,7 +913,7 @@ bool BTreeDriver::TestInsertsWithIndexSplits() {
 			}
 
 			res = res && TestBalance(btf, leftPage, rightPage);
-			
+
 			if(MINIBASE_BM->UnpinPage(leftPid, CLEAN) == FAIL) {
 				std::cerr << "Error unpinning left leaf page." << std::endl;
 				res = false;
@@ -991,30 +967,24 @@ bool BTreeDriver::TestModifiedInserts() {
 
 	res = InsertDuplicates(btf, 1, 60, 1, 30);
 
-	std::cout << "RES 1: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 3, 55, 1, 30);
 	res = res && InsertDuplicates(btf, 7, 65, 1, 30);
 
-	std::cout << "RES 2: " << res << std::endl;
-
 	res = res && TestNumLeafPages(btf, 3);
 	res = res && TestNumEntries(btf, 180);
-
-	std::cout << "RES 3: " << res << std::endl;
 
 	res = res && InsertDuplicates(btf, 4, 75, 1, 30);	
 	res = res && TestNumLeafPages(btf, 4);
 	res = res && TestNumEntries(btf, 255);
 
-	std::cout << "RES 4: " << res << std::endl;
-
 	char searchKey[MAX_KEY_LENGTH];
 	toString(4, searchKey, 30);
-	
+
+
 	BTreeFileScan* scan = btf->OpenScan(searchKey, searchKey);
 	res = res && TestScanCount(scan, 75);
-	
+
 	if(btf->DestroyFile() != OK) {
 		std::cerr << "Error destroying BTreeFile" << std::endl;
 		res = false;
@@ -1043,22 +1013,14 @@ bool BTreeDriver::TestLargeWorkload() {
 	res = InsertRange(btf, 1, 1000, 1, 5, true);
 	res = res && TestNumEntries(btf, 1000);
 
-	std::cout << "RES 1: " << res << std::endl;
-
 	res = InsertRange(btf, 1, 1000, 2, 5, false);
 	res = res && TestNumEntries(btf, 2000);
-
-	std::cout << "RES 2: " << res << std::endl;
 
 	res = InsertRange(btf, 501, 1500, 3, 5, false);
 	res = res && TestNumEntries(btf, 3000);
 
-	std::cout << "RES 3: " << res << std::endl;
-
 	res = InsertRange(btf, 2001, 4000, 1, 5, false);
 	res = res && TestNumEntries(btf, 5000);
-
-	std::cout << "RES 4: " << res << std::endl;
 
 	char low[MAX_KEY_LENGTH];
 	char high[MAX_KEY_LENGTH];
@@ -1084,6 +1046,46 @@ bool BTreeDriver::TestLargeWorkload() {
 	delete btf;
 
 	return res;
+}
 
-	
+bool BTreeDriver::TestPerformance() {
+	Status status;
+	BTreeFile *btf;
+	bool res = true;
+	clock_t initTime;
+	clock_t endTime;
+	double timeInMilliseconds;
+	std::cout << "Starting Performance Test..." << std::endl;
+
+	int numrecs;
+	for (numrecs= 1000; numrecs<=10000; numrecs=numrecs+1000){
+		initTime = clock();
+		btf = new BTreeFile(status, "BTreeTest");
+		res = res && InsertRange(btf, 1, numrecs, 1, 5, false);
+		endTime = clock();
+		timeInMilliseconds = (endTime - initTime) * (1000.0 / CLOCKS_PER_SEC);
+		std::cout << "Inserting "<< numrecs <<" takes: " << timeInMilliseconds << "ms" << std::endl;
+
+		char low[MAX_KEY_LENGTH];
+		char high[MAX_KEY_LENGTH];
+
+		toString(1, low, 5);
+		toString(numrecs, high, 5);
+
+		initTime = clock();
+		BTreeFileScan* scan = btf->OpenScan(low, high);
+		res = res && TestScanCount(scan, numrecs);
+		endTime = clock();
+		timeInMilliseconds = (endTime - initTime) * (1000.0 / CLOCKS_PER_SEC);
+		std::cout << "Scanning "<< numrecs <<" takes : " << timeInMilliseconds << "ms" << std::endl;
+		delete scan;
+
+		if(btf->DestroyFile() != OK) {
+			std::cerr << "Error destroying BTreeFile" << std::endl;
+			res = false;
+		}
+		delete btf;
+	}
+
+	return res;
 }

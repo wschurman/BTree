@@ -21,7 +21,7 @@ public:
 	Status DestroyFile();
 
 	~BTreeFile();
-	
+
 	Status Insert(const char *key, const RecordID rid);
 
 	BTreeFileScan* OpenScan(const char* lowKey, const char* highKey);
@@ -39,14 +39,13 @@ private:
 	Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid);
 	Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid);
 	Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid, char *&newPageKey);
-	Status BTreeFile::BalanceIndexPages(IndexPage* left, IndexPage* right);
 
 	//Please don't delete this method. It's used for testing, 
 	// and may be useful for you.
 	PageID GetLeftLeaf();
 
-	Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex);
-	Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex);
+	Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex); //function to find leaf page to start scan
+	Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex); //function to get child of index page to find leaf to scan
 
 };
 

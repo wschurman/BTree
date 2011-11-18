@@ -48,6 +48,7 @@ public:
 	static bool TestInsertsWithIndexSplits();
 	static bool TestModifiedInserts();
 	static bool TestLargeWorkload();
+	static bool TestPerformance();
 
 };
 

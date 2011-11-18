@@ -14,7 +14,7 @@
 //-------------------------------------------------------------------
 BTreeFileScan::~BTreeFileScan ()
 {
-	//TODO: add your code here
+	//Add our code here
 }
 
 
@@ -47,28 +47,24 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
     if(this->done){
 		return DONE;
     }
-
     while (!(this->done)) {
-
-		Status s = scan->GetNext(keyPtr, rid);
-		
-		//std::cout << "GOT 2" << std::endl;
-        if (s != DONE) {
-			if (this->highKey == NULL || strcmp(keyPtr, this->highKey) <= 0) { //within upper bound
-				if(this->lowKey == NULL || strcmp(keyPtr, this->lowKey) >= 0) { //within lower bound
+		Status s = scan->GetNext(keyPtr, rid); //get next pair on this page
+        if (s!=DONE) {
+			if (this->highKey==NULL||strcmp(keyPtr, this->highKey)<=0) { //within upper bound
+				if(this->lowKey==NULL||strcmp(keyPtr, this->lowKey)>=0) { //within lower bound
 					UNPIN(currentPageID, CLEAN);
                     return OK;
                 } else {
 					continue; //haven't reached range yet
                 }
-            } else { //exceeded upper bound
+            } else { //exceeded upper bound, so set done
 				this->done = true;
                 rid.pageNo = INVALID_PAGE;
                 rid.slotNo = -1;
                 UNPIN(currentPageID, CLEAN);
                 return DONE;
             }
-		} else { // s == DONE; current scanned page = done
+		} else { //done scanning current page, get next page
 			currentPageID = currentPage->GetNextPage();
             if(currentPageID == INVALID_PAGE){
 				//no more pages
@@ -80,7 +76,7 @@ Status BTreeFileScan::GetNext (RecordID & rid, char*& keyPtr)
 			delete scan;
             UNPIN(currentPage->PageNo(), CLEAN);
 			this->_SetIter();
-			return GetNext(rid, keyPtr);
+			return GetNext(rid, keyPtr); //return the GetNext output on new page
 		}
 	}
 	return DONE;
@@ -103,16 +99,17 @@ Status BTreeFileScan::DeleteCurrent () {
 		return DONE;
 	}
 	PIN(currentPageID, currentPage);
-	Status s = scan->DeleteCurrent();
+	Status s = scan->DeleteCurrent(); //use PageKVScan deletecurrent
 	UNPIN(currentPageID, DIRTY);
 	return s;
 }
 
+
+//function used to initialize the page scan; open a scan on page found in searchtree in btreefile.cpp
 Status BTreeFileScan::_SetIter() {  
     PIN(currentPageID, currentPage);
 	scan = new PageKVScan<RecordID>();
 	currentPage->OpenScan(scan);
 	UNPIN(currentPageID, CLEAN);
-
 	return OK;
 }

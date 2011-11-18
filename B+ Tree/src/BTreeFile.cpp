@@ -37,20 +37,18 @@ using namespace std;
 BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
 	PageID headerID = NULL;
 	Status s = MINIBASE_DB->GetFileEntry(filename, headerID);
-	if (s == FAIL) {
+	if (s == FAIL) { // no database header page yet, create it
 		Page *p;
 		returnStatus = MINIBASE_BM->NewPage(headerID, p);
 		if (returnStatus == OK){
 			this->header = (BTreeHeaderPage*)p; 
 			this->header->Init(headerID); 
 			this->header->SetRootPageID(INVALID_PAGE);
-			//may need to initialize next and previous page to Invalid?
 			returnStatus = MINIBASE_DB->AddFileEntry(filename, headerID);
 		}
 	}
-	
-	returnStatus = MINIBASE_BM->PinPage(headerID, (Page*&) this->header);
 
+	returnStatus = MINIBASE_BM->PinPage(headerID, (Page*&) this->header); // pin the header
 	if (returnStatus != OK) {
 		std::cout << "Unable to pin header page in BTreeFile constructor" << std::endl;
 	}
@@ -72,8 +70,8 @@ BTreeFile::BTreeFile(Status& returnStatus, const char *filename) {
 //-------------------------------------------------------------------
 
 BTreeFile::~BTreeFile() {
-	MINIBASE_BM->UnpinPage(((HeapPage*)this->header)->PageNo(), true);
-	_CrtDumpMemoryLeaks();
+	MINIBASE_BM->UnpinPage(((HeapPage*)this->header)->PageNo(), true); // unpin header
+	//_CrtDumpMemoryLeaks();
 }
 
 //-------------------------------------------------------------------
@@ -87,37 +85,39 @@ BTreeFile::~BTreeFile() {
 //           to delete the database file. 
 //-------------------------------------------------------------------
 Status BTreeFile::DestroyFile() {
-	/*BTreeFileScan* scan = this->OpenScan(NULL, NULL);
-
-	while (scan->GetNext() != DONE) {
-		scan->DeleteCurrent();
-	}*/
-
 	cout << "DestroyFile()" << endl;
 
 	PageID rootPid;
 	Status s;
 	rootPid = header->GetRootPageID();
 
-	if (rootPid == INVALID_PAGE) {
+	if (rootPid == INVALID_PAGE) { // no root, done deleting already
 		return OK;
 	} else {
-		s = this->DestroyHelper(rootPid);
+		s = this->DestroyHelper(rootPid); // recursively delete from root
 		if (s != OK) {
 			cout << "First call to destroy helper failed" << endl;
 			return s;
 		}
-		s = MINIBASE_BM->FreePage(rootPid);
+		s = MINIBASE_BM->FreePage(rootPid); // free root
 		if (s != OK) {
 			cout << "Freeing root failed" << endl;
 			return s;
 		}
-		s = MINIBASE_DB->DeleteFileEntry(this->dbfile);
-		//cout << "GOT HERE" << endl;
+		s = MINIBASE_DB->DeleteFileEntry(this->dbfile); // delete db file
 		return s;
 	}
 }
 
+
+//-------------------------------------------------------------------
+// BTreeFile::DestroyHelper
+//
+// Input   : currPid
+// Output  : None
+// Return  : OK if successful, FAIL otherwise.
+// Purpose : Recursively traverse the tre and free all pages along the way.
+//-------------------------------------------------------------------
 Status BTreeFile::DestroyHelper(PageID currPid) {
 	ResizableRecordPage* currPage;
 	Status s = OK;
@@ -127,38 +127,36 @@ Status BTreeFile::DestroyHelper(PageID currPid) {
 	if (currPage->GetType() == INDEX_PAGE) {
 		IndexPage* indexPage = (IndexPage*) currPage;
 		PageKVScan<PageID>* iter = new PageKVScan<PageID>();
-		indexPage->OpenScan(iter); // maybe include if stuff breaks
+		indexPage->OpenScan(iter);
 
 		char* currKey;
 		PageID currID;
 		Status ds = OK;
 
 		while (iter->GetNext(currKey, currID) != DONE) {
+			// index page, so recursively call helper on all child pages
 			ds = this->DestroyHelper(currID);
 			if (ds != OK) {
 				cout << "Destroy helper failed" << endl;
 				return ds;
 			}
+			// delete child page after recursively deleting all its children
 			ds = MINIBASE_BM->FreePage(currID);
-			//cout << "Free Page: " << currID << endl;
 			if (ds != OK) {
 				cout << "Free Page failed" << endl;
 				return ds;
 			}
 		}
-		
+
 		delete iter;
 
 		UNPIN(currPid, DIRTY);
 		return s;
 	} else if(currPage->GetType() == LEAF_PAGE) {
-		
+		// will be deleted by parent index page call to recursive method
 		UNPIN(currPid, CLEAN);
-
-		//s = MINIBASE_BM->FreePage(currPid);
-
 		return s;
-	} else {
+	} else { // should not happen
 		UNPIN(currPid, CLEAN);
 		return FAIL;
 	}
@@ -181,23 +179,20 @@ Status BTreeFile::DestroyHelper(PageID currPid) {
 // Note    : If the root didn't exist, create it.
 //-------------------------------------------------------------------
 Status BTreeFile::Insert(const char *key, const RecordID rid) {
-	// TODO: ensure all statuses are handled
-	//cout << "Call to insert: " << key << endl;
 	PageID rootPid;
 	Status s;
 	rootPid = header->GetRootPageID();
+
 	// If no root page, create one
 	if(rootPid == INVALID_PAGE) {
-		//cout << "No Root, creating" << endl;
+
 		LeafPage* leafpage;
-		s = MINIBASE_BM->NewPage(rootPid, (Page*&)leafpage); // also PINs
-		if(s == OK){
-			// Need to initialize?
+		s = MINIBASE_BM->NewPage(rootPid, (Page*&)leafpage);
+		if(s == OK) {
 			leafpage->Init(rootPid, LEAF_PAGE);
 			leafpage->SetNextPage(INVALID_PAGE);
 			leafpage->SetPrevPage(INVALID_PAGE);
-			s = leafpage->Insert(key,rid);
-			//cout << "Insert first k,v into netw root" << endl;
+			s = leafpage->Insert(key,rid); // insert first key, value into root leaf
 
 			//Make this the root page
 			header->SetRootPageID(rootPid);
@@ -207,7 +202,6 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 			return s;
 		}
 	} else { //there is root already
-		//cout << "Traversing" << endl;
 
 		PageID currPid = rootPid;
 		PageID insertPid = NULL;
@@ -216,21 +210,21 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 		char * new_child_key;
 		PageID new_child_pageid;
 
+		// recursively traverse
 		s = this->InsertHelper(currPid, split, new_child_key, new_child_pageid, key, rid);
 
-		if (split == NEEDS_SPLIT) { // needs to split root
-			//cout << "Child of root split" << endl; 
-			// possibly put in if free space
+		// split will propagate up through the split variable above, signaling that the child was split and a
+		// new page was created with new_child_key and new_child_pageid that need to be inserted into the root
+		// page which also needs to be split
+		if (split == NEEDS_SPLIT) {
+
 			ResizableRecordPage* currPage;
 			PIN(rootPid, currPage);
 
 			if (currPage->GetType() == INDEX_PAGE) {
 
-				//cout << "Root is index page, child split, inserting new_child_key into root" << endl;
-				//cout << "Root is index, trying to put last split in root" << endl;
 				IndexPage* indexPage = (IndexPage*) currPage;
-				
-				//cout << "***************************************************\n***************************************" << endl;
+
 				IndexPage* newRoot;
 				PageID newRootPid;
 				s = MINIBASE_BM->NewPage(newRootPid, (Page*&)newRoot);
@@ -250,8 +244,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 					return s2;
 				}
 
-				//indexPage->DeleteKey(minKey);
-
+				// insert two children into new root index page
 				s2 = newRoot->Insert(minKey, rootPid);
 				s2 = newRoot->Insert(new_child_key, new_child_pageid);
 				if (s2 != OK) {
@@ -259,35 +252,28 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 					return s2;
 				}
 
-				//cout << "33: OldAvail: " << indexPage->AvailableSpace() << "NewAvail: " << newIndexPage->AvailableSpace() << endl;
+				this->header->SetRootPageID(newRootPid); // update root pid variable
 
-				this->header->SetRootPageID(newRootPid);
-				//this->PrintTree(newIndexPid, true);
-
+				// update prev page pointer
 				char* minKey2;
 				PageID minVal;
-				newRoot->GetMinKeyValue(minKey2, minVal); // might be key
+				newRoot->GetMinKeyValue(minKey2, minVal);
 				newRoot->SetPrevPage(minVal);
 
+				// delete the first entry that is now the prev page pointer
 				PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 				newRoot->OpenScan(iter);
 				iter->GetNext(minKey2, minVal);
 				iter->DeleteCurrent();
 				delete iter;
 
-				//newRoot->DeleteKey(minKey2); // maybe
-					
-				// do a rebalance of children
-
 				UNPIN(rootPid, DIRTY);
 				UNPIN(newRootPid, DIRTY);
 
-				//PrintTree(newRootPid, true);
-
 				return s;
-			} else {
-				//cout << "root split and was leaf, being fed two leaves, put them into index" << endl;
-				// new root
+
+			} else { // root is leaf page and needs split into index page with two leaf children
+
 				IndexPage* newIndexPage;
 				PageID newIndexPid;
 				s = MINIBASE_BM->NewPage(newIndexPid, (Page*&)newIndexPage);
@@ -309,24 +295,24 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 					return s2;
 				}
 
+				// insert two pages
 				s2 = newIndexPage->Insert(minKey, rootPid);
 				s2 = newIndexPage->Insert(new_child_key, new_child_pageid);
-
-				//cout << "Inserted: (" << minKey << ", " << rootPid << "), (" << new_child_key << ", " << new_child_pageid << ")" << endl;
 
 				if (s2 != OK) {
 					cout << "Error inserting into new root" << endl;
 					return s2;
 				}
 
-				this->header->SetRootPageID(newIndexPid);
+				this->header->SetRootPageID(newIndexPid); // update header pid
 
+				// set prev pointer
 				char* minKey2;
 				PageID minVal;
-				newIndexPage->GetMinKeyValue(minKey2, minVal); // might be key
+				newIndexPage->GetMinKeyValue(minKey2, minVal);
 				newIndexPage->SetPrevPage(minVal);
 
-				// need to delete first key value, not all of first key
+				// need to delete first key value that is now the prev pointer
 				PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 				newIndexPage->OpenScan(iter);
 				iter->GetNext(minKey2, minVal);
@@ -334,10 +320,7 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 				delete iter;
 
 				UNPIN(newIndexPid, DIRTY);
-				//cout << "Unpinned new root" << endl;
 				UNPIN(rootPid, DIRTY);
-				//cout << "Unpinned root" << endl;
-				//PrintTree(newIndexPid, true);
 				return s;
 			}
 		}
@@ -350,10 +333,20 @@ Status BTreeFile::Insert(const char *key, const RecordID rid) {
 	}
 }
 
-//recursive helper function, the bool return type and parentPid is used for splitting recursively, i.e. if it returns 
+//-------------------------------------------------------------------
+// BTreeFile::InsertHelper
+//
+// Input   : currPid - the current pid being traversed
+//           st - split status of the current node
+//			 newChildKey - if new sibling was created, fill this and newChildPageID
+//			 key, rid - the key, record ID being inserted
+// Output  : None
+// Return  : OK if successful, FAIL otherwise.
+// Purpose : Recursively traverse the tree to insert an index entry with this rid and key.
+//			 Split if necessary and propagate up to parents.  
+//-------------------------------------------------------------------
 Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildKey, PageID & newChildPageID, const char *key, const RecordID rid) {
-	//cout << "Insert Helper, currPid: " << currPid << " key: " << key << " val: (" << rid.pageNo << ", " << rid.slotNo << ")" << endl;
-	//cout << "Free Buffer Slots: " << MINIBASE_BM->GetNumOfUnpinnedBuffers() << endl;
+
 	ResizableRecordPage* currPage;
 	PageID nextPid;
 	Status s = OK;
@@ -365,8 +358,8 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 
 	PIN(currPid, currPage);
 
-	if (currPage->GetType() == INDEX_PAGE) {
-		//cout << "Insert helper into index page" << endl;
+	if (currPage->GetType() == INDEX_PAGE) { // current page is an index page
+
 		IndexPage* indexPage = (IndexPage*) currPage;
 		PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 
@@ -374,72 +367,25 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 
 		char * largest_key; // lte key
 
-		Status s3 = iter->GetNext(largest_key, nextPid); // check if done
+		// check if done, in which case use the prev page pointer
+		Status s3 = iter->GetNext(largest_key, nextPid);
 		if (s3 != OK) {
 			nextPid = indexPage->GetPrevPage();
 		}
 		PageID largest = nextPid;
-
-		/*if (strcmp(largest_key, key) < 0) { // this key is less than the search key
-			//cout << "largest key is less than search key" << endl;
-			char * maintain_key = largest_key;
-			//cout << "largest key is " << largest_key << endl;
-			while (iter->GetNext(largest_key, nextPid) != DONE) {
-				if (largest_key != maintain_key) {
-					break;
-				} else {
-					largest = nextPid;
-				}
-			}
-			nextPid = largest;
-		} else if (strcmp(largest_key, key) == 0) {
-			//cout << "largest key is equal to search key" << endl;
-			char * mink;
-			indexPage->GetMinKey(mink);
-			if (largest_key == mink) {
-				//cout << "largest key is the first key on the page" << endl;
-				PageID prevpage = indexPage->GetPrevPage();
-				if (prevpage != INVALID_PAGE) {
-					UNPIN(currPid, CLEAN);
-					currPid = prevpage;
-					PIN(currPid, currPage);
-					indexPage = (IndexPage*) currPage;
-				}
-			} else {
-				//cout << "getprev" << endl;
-				iter->GetPrev(largest_key, nextPid);
-			}
-		}
-		*/
-
 		delete iter;
 
-
-		s = this->InsertHelper(nextPid, split, new_child_key, new_child_pageid, key, rid); // traverse to child
+		// recursive call on next pid
+		s = this->InsertHelper(nextPid, split, new_child_key, new_child_pageid, key, rid);
 
 		if (split == NEEDS_SPLIT) {
-			//cout << "Child split" << endl;
-			/*if (currPid == this->header->GetRootPageID()) {
-				st = NEEDS_SPLIT; // propagate up a level of recursion
-				newChildKey = new_child_key;
-				newChildPageID = new_child_pageid;
-				UNPIN(currPid, DIRTY);
-				return s;
-			}*/
-			// split this child index node, will need to insert new leftval into this Index page with
-			// pointer to new child node
 
-			//if (currPid == this->header->GetRootPageID()) {
-				//PrintWhole(true);
-				//cout << "New child of root" << endl;
-			//}
+			// child split, insert new child info into this page
 
 			if (indexPage->Insert(new_child_key, new_child_pageid) != OK) {
 
-				//cout << "index needs to split self" << endl;
-				// split this page.
+				// no room in current page, split this page and propagate up
 
-				// make new page
 				IndexPage* newIndexPage;
 				PageID newIndexPid;
 				s2 = MINIBASE_BM->NewPage(newIndexPid, (Page*&)newIndexPage);
@@ -460,24 +406,10 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 				st = NEEDS_SPLIT; // propagate up a level of recursion
 				newChildKey = new_page_key;
 				newChildPageID = newIndexPid;
-				
+
 				UNPIN(newIndexPid, DIRTY);
 
-				/*if (currPid == this->header->GetRootPageID()) {
-					cout << "&&&&&&&&&&&&&&&&&&&&&&&&&root index page split into two " << endl;
-				}*/
-			} else {
-				//cout << "new child put into: " << currPid << endl;
-				/*if (currPid == this->header->GetRootPageID()) {
-					cout << "!!!!!!!!child inserted into root" << endl;
-				}*/
 			}
-
-			//char* minKey2;
-			//PageID minVal;
-			//indexPage->GetMinKeyValue(minKey2, minVal); // might be key
-			//indexPage->SetPrevPage(minVal);
-
 
 			UNPIN(currPid, DIRTY);
 			return s;
@@ -485,56 +417,34 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 			UNPIN(currPid, CLEAN);
 			return s;
 		}
-	} else if(currPage->GetType() == LEAF_PAGE) {
-		//cout << "Insert helper into leaf page" << endl;
+	} else if (currPage->GetType() == LEAF_PAGE) {
+		
+		// reached leaf page, insert the key, rid, splitting if necessary
 
-		// in the case that this leaf page needs to split:
-			// split
-			// set st to true, set newChildKey and newChildPageID
 		LeafPage* leafPage = (LeafPage*) currPage;
 		char * maxkey;
 		leafPage->GetMaxKey(maxkey);
-		//if (strcmp(largest_key, key) < 0) { // this key is less than the search key
-		/*if (strcmp(maxkey, key) < 0) {
-			PageID nextpage = leafPage->GetNextPage();
-			if (nextpage != INVALID_PAGE) {
-				UNPIN(currPid, CLEAN);
-				currPid = nextpage;
-				PIN(currPid, currPage);
-				leafPage = (LeafPage*) currPage;
-			}
-		}*/
 
 		if (leafPage->Insert(key, rid) != OK) {
-			// split this page.
-			//cout << "insert into leaf failed, needs to split" << endl;
-			// make new page
+			// split this page, propagate up to parent
+			
 			LeafPage* newLeafPage;
 			PageID newLeafPid;
 
-			//cout << "InsertHelper num unpinned: " << MINIBASE_BM->GetNumOfUnpinnedBuffers() << endl;
 			s2 = MINIBASE_BM->NewPage(newLeafPid, (Page*&)newLeafPage);
 			if (s2 != OK) {
-				//PrintWhole(true);
 				cout << "Error allocating new leaf page: "<<newLeafPid<<" in InsertHelper split" << endl;
-				_CrtDumpMemoryLeaks();
 				return s2;
 			}
 			newLeafPage->Init(newLeafPid, LEAF_PAGE);
 			newLeafPage->SetNextPage(INVALID_PAGE);
 			newLeafPage->SetPrevPage(INVALID_PAGE);
-			
+
 			s2 = this->SplitLeafPage(leafPage, newLeafPage, key, rid);
 			if (s2 != OK) {
 				cout << "Error in Split Leaf" << endl;
-				PrintWhole(true);
 				return s2;
 			}
-
-			//cout << "OldAvail: " << leafPage->AvailableSpace() << "NewAvail: " << newLeafPage->AvailableSpace() << endl;
-
-			//cout << "leafPage size should be 30: " << leafPage->GetNumOfRecords() << endl;
-			//cout << "newLeafPage size should be 30: " << newLeafPage->GetNumOfRecords() << endl;
 
 			st = NEEDS_SPLIT; // propagate up
 			newLeafPage->GetMinKey(newChildKey);
@@ -550,12 +460,19 @@ Status BTreeFile::InsertHelper(PageID currPid, SplitStatus& st, char*& newChildK
 	}
 }
 
+//-------------------------------------------------------------------
+// BTreeFile::SplitLeafPage
+//
+// Input   : oldPage - the current (full) page
+//           newPage - the empty page
+//			 key, rid - the key, record ID to be inserted during the split
+// Output  : None
+// Return  : OK if successful, FAIL otherwise.
+// Purpose : Split the page into two and insert the key, rid into the correct page 
+//-------------------------------------------------------------------
 Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char *key, const RecordID rid) {
 
-	//cout << "Call to split leaf page" << endl;
-	//this->PrintTree(newPage->PageNo(), true);
 	Status s1 = OK;
-	// replace scans with pointer swapping in the future
 	PageKVScan<RecordID>* oldScan = new PageKVScan<RecordID>();
 	PageKVScan<RecordID>* newScan = new PageKVScan<RecordID>(); // need to cleanup
 	s1 = oldPage->OpenScan(oldScan);
@@ -568,34 +485,18 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 	RecordID currID;
 	Status ds = OK;
 
-	//this->PrintTree(oldPage->PageNo(), true);
-
 	bool insertedNew = false;
 
-	//Status b = oldScan->GetNext(currKey, currID);
-	//cout << "NUM OKF UPB before move: " << MINIBASE_BM->GetNumOfUnpinnedBuffers() << endl;
-
+	// move items to new page
 	while (oldScan->GetNext(currKey, currID) != DONE) {
-		//cout << "Moving " << currKey << ": (" << currID.pageNo << ", " << currID.slotNo << ")" << endl;
 		ds = newPage->Insert(currKey, currID);
 		if (ds != OK) {
-			//this->PrintTree(newPage->PageNo(), true);
-			// this is being incredibly dumb, PageKVScan is returning OK for the last value of a key with multiple values twice (duplicate)
 			std::cout << "SplitLeafPage transfer insert failed" << std::endl;
-			this->PrintTree(oldPage->PageNo(), true);
-			this->PrintTree(newPage->PageNo(), true);
-			//break;
 			return ds;
 		}
 	}
 	oldPage->DeleteAll();
-
 	delete oldScan;
-
-	//cout << "NUM OKF UPB after move: " << MINIBASE_BM->GetNumOfUnpinnedBuffers() << endl;
-
-	//cout << "DEBUG: size of oldPage should be 0:" << oldPage->GetNumOfRecords() << endl;
-	//cout << "DEBUG: size of newPage should be 59: " << newPage->GetNumOfRecords() << endl;
 
 	s1 = newPage->OpenScan(newScan);
 	if (s1 != OK) {
@@ -608,21 +509,22 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 		return s1;
 	}
 
+	// move items back while keeping balance
 	while (oldPage->AvailableSpace() > newPage->AvailableSpace()) {		
-		if (strcmp(currKey, key) > 0 && insertedNew == false) { // currKey > key, maybe >=, so put val into oldPage
+		if (strcmp(currKey, key) > 0 && insertedNew == false) { // currKey > key, so put val into oldPage
 			ds = oldPage->Insert(key, rid);
 			insertedNew = true;
 			if (ds != OK) {
 				cout << "Insert new key in split failed SplitLeafPage" << endl;
 				return ds;
 			}
-		} else { //if (strcmp(currKey, key) < 0) { // currKey < key, so move value from oldPage to newPage
+		} else {
 			ds = oldPage->Insert(currKey, currID);
 			if (ds != OK) {
 				cout << "Moving Page Failed in SplitLeafPage" << endl;
 				return ds;
 			}
-			
+
 			ds = newScan->DeleteCurrent();
 			if (ds != OK) {
 				cout << "Deleting after move page failed in SplitLeafPage" << endl;
@@ -639,6 +541,7 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 
 	delete newScan;
 
+	// key, rid not inserted during split, insert now
 	if (insertedNew == false) {
 		ds = newPage->Insert(key, rid);
 		if (ds != OK) {
@@ -647,7 +550,7 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 		}
 	}
 
-	// prev/next pointers
+	// set prev/next pointers
 	PageID oldNextPageID = oldPage->GetNextPage();
 	ResizableRecordPage* oldNextPage;
 	if (oldNextPageID != INVALID_PAGE) {
@@ -666,13 +569,21 @@ Status BTreeFile::SplitLeafPage(LeafPage* oldPage, LeafPage* newPage, const char
 	return ds;
 }
 
-// Lots of duplicated code, may try to template out, newPageKey is the min val of the new page that was removed from the new page
+//-------------------------------------------------------------------
+// BTreeFile::SplitIndexPage
+//
+// Input   : oldPage - the current (full) page
+//           newPage - the empty page
+//			 key, rid - the key, record ID to be inserted during the split
+//			 newPageKey - the min key to propagate up
+// Output  : None
+// Return  : OK if successful, FAIL otherwise.
+// Purpose : Split the page into two and insert the key, rid into the correct page
+//-------------------------------------------------------------------
 Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const char *key, const PageID rid, char *&newPageKey) {
-	//cout << "Call to splitindexpage" << endl;
 
 	Status s1 = OK;
 
-	// replace scans with pointer swapping in the future
 	PageKVScan<PageID>* oldScan = new PageKVScan<PageID>();
 	PageKVScan<PageID>* newScan = new PageKVScan<PageID>(); //need to cleanup
 	s1 = oldPage->OpenScan(oldScan);
@@ -687,20 +598,13 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 	bool insertedNew = false;
 
 	while (oldScan->GetNext(currKey, currID) != DONE) {
-		//cout << "Moving " << currKey << ": (" << currID.pageNo << ", " << currID.slotNo << ")" << endl;
 		ds = newPage->Insert(currKey, currID);
 		if (ds != OK) {
-			//this->PrintTree(newPage->PageNo(), true);
-			// this is being incredibly dumb, PageKVScan is returning OK for the last value of a key with multiple values twice (duplicate)
 			std::cout << "SplitIndexPage transfer insert failed" << std::endl;
-			this->PrintTree(oldPage->PageNo(), true);
-			this->PrintTree(newPage->PageNo(), true);
-			//break;
 			return ds;
 		}
 	}
 	oldPage->DeleteAll();
-
 	delete oldScan;
 
 	s1 = newPage->OpenScan(newScan);
@@ -715,14 +619,13 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 	}
 
 	while (oldPage->AvailableSpace() > newPage->AvailableSpace()) {
-		//cout << "OldAvail: " << oldPage->AvailableSpace() << "NewAvail: " << newPage->AvailableSpace() << endl;
 		if (strcmp(currKey, key) > 0 && insertedNew == false) { // currKey > key
 			ds = oldPage->Insert(key, rid);
 			if (ds != OK) {
 				cout << "Insert new key in split failed SplitIndexPage" << endl;
 				return ds;
 			}
-		} else { //if (strcmp(currKey, key) < 0) { // currKey < key
+		} else { // currKey < key
 			ds = oldPage->Insert(currKey, currID);
 			if (ds != OK) {
 				cout << "Moving Page Failed in SplitIndexPage" << endl;
@@ -750,41 +653,25 @@ Status BTreeFile::SplitIndexPage(IndexPage* oldPage, IndexPage* newPage, const c
 			return ds;
 		}
 	}
-	
-	
 
-	// might need
-	//oldPage->GetMinKeyValue(minKey, minVal);
-	//oldPage->SetPrevPage(minVal);
-
-	
 	char* minKey;
 	PageID minVal;
 
+	// set prev page pointer
 	newPage->GetMinKeyValue(minKey, minVal);
 	newPage->SetPrevPage(minVal);
 
-	//cout << "OldAvail: " << oldPage->AvailableSpace() << "NewAvail: " << newPage->AvailableSpace() << endl;
+	// propagate minKey
 	newPageKey = minKey;
-	
+
+	// delete minKey
 	PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 	newPage->OpenScan(iter);
 	iter->GetNext(minKey, minVal);
 	iter->DeleteCurrent();
 	delete iter;
 
-	//cout << "2: OldAvail: " << oldPage->AvailableSpace() << "NewAvail: " << newPage->AvailableSpace() << endl;
-
-	// rebalance
-
-	//if (oldPage->AvailableSpace() > newPage->AvailableSpace()
-
 	return ds;
-}
-
-Status BTreeFile::BalanceIndexPages(IndexPage* left, IndexPage* right) {
-	
-	return OK;
 }
 
 //-------------------------------------------------------------------
@@ -808,13 +695,13 @@ Status BTreeFile::BalanceIndexPages(IndexPage* left, IndexPage* right) {
 //-------------------------------------------------------------------
 BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
 	BTreeFileScan* newScan = new BTreeFileScan();
-	
-	if (header->GetRootPageID() != INVALID_PAGE) {
+
+	if (header->GetRootPageID() != INVALID_PAGE) { //found a root
 		PageID lowIndex;
 		Status s;
 
-		if (lowKey == NULL) {
-			//NONTRIVIAL CASE:
+		if (lowKey == NULL) { // no lower bound so start at left most leaf using given function
+			//initialize scan
 			newScan->done = false;
 			newScan->lowKey = lowKey;
 			newScan->highKey = highKey;
@@ -822,45 +709,43 @@ BTreeFileScan* BTreeFile::OpenScan(const char* lowKey, const char* highKey) {
 		    newScan->_SetIter();
 			return newScan; 
 		}
-
-		s = _searchTree(lowKey,  header->GetRootPageID(), lowIndex); //look for lowIndex
-		if (s != OK) { //maybe just return NULL
-			newScan->done = true; //??? SHOULD FAIL instead????
+		s = _searchTree(lowKey,  header->GetRootPageID(), lowIndex); //look for page with lowIndex
+		if (s != OK) { //if search fails, initialize scan to done
+			//initialize scan
+			newScan->done = true; 
 			newScan->lowKey = lowKey;
 			newScan->highKey = highKey;
 			newScan->currentPageID = INVALID_PAGE;
-			newScan->bt = this;
 			return newScan;
-		} else{
-			//NONTRIVIAL CASE:
+		} else{ // found page to start at so initialize scan to that page
+			//initialize scan
 			newScan->done = false;
 			newScan->lowKey = lowKey;
 			newScan->highKey = highKey;
 			newScan->currentPageID = lowIndex;
 		    newScan->_SetIter();
-			//std::cout << "OPENED OK" << std::endl;
 			return newScan; 
 		}
-	} else {
-		newScan->done= true; //???
+	} else { //root not found so just initialize scan to done
+		//initialize scan
+		newScan->done= true;
 		newScan->lowKey = lowKey;
 		newScan->highKey = highKey;
 		newScan->currentPageID = INVALID_PAGE;
-		newScan->bt= this;
 		return newScan;
 	}
 }
 
+//function to find leaf page with lowkey or key just before that 
 Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIndex)
 {
-	//std::cout << "SearchTree: " << currentID << "Key: " << key << std::endl;
     ResizableRecordPage *page;
 	Status s;
     PIN (currentID, page);
-    if (page->GetType()==INDEX_PAGE) {
+    if (page->GetType()==INDEX_PAGE) { //current page is index page so call helper function
 		s =	_searchIndexNode(key, currentID, (IndexPage*)page, lowIndex);
 		return s;
-	} else if(page->GetType()==LEAF_PAGE) {
+	} else if(page->GetType()==LEAF_PAGE) { //current page is leaf page so store it so it can be used in scan
 		lowIndex = page->PageNo();
 		UNPIN(currentID,CLEAN);
 	} else {
@@ -869,16 +754,17 @@ Status BTreeFile::_searchTree( const char *key,  PageID currentID, PageID& lowIn
 	return OK;
 }
 
+//function to find the child for an index page that is on path to leaf page with lowkey on it
 Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage *currentIndex, PageID& lowIndex)
 {
-	//std::cout << "SearchIndex: " << currentID << " Key: " << key << std::endl;
 	PageID nextPid;
 	PageKVScan<PageID>* iter = new PageKVScan<PageID>();
 
+	//search for the key (or the next smallest key) on this page
 	Status s1 = currentIndex->Search(key, *iter);
 
 	char * sk;
-	if (iter->GetNext(sk, nextPid) != OK) {
+	if (iter->GetNext(sk, nextPid) != OK) { // if no valid key, go to previous page
 		delete iter;
 		nextPid = currentIndex->GetPrevPage();
 		if (nextPid == INVALID_PAGE) {
@@ -892,22 +778,19 @@ Status BTreeFile::_searchIndexNode(const char *key,  PageID currentID, IndexPage
 
 	char * mink;
 	currentIndex->GetMinKey(mink);
-	if (sk == mink) {
-		//cout << "largest key is the first key on the page" << endl;
+	if (sk == mink) { // if key is first key on page then go back a page
 		PageID prevpage = currentIndex->GetPrevPage();
 		if (prevpage != INVALID_PAGE) {
 			nextPid = prevpage;
 		}
 	} else {
-		//cout << "getprev" << endl;
-		//cout << "AHDAHDAEHWFEFHHEF" << endl;
 		iter->GetPrev(sk, nextPid);
 	}
 
 	delete iter;
 
 	UNPIN(currentID, CLEAN);
-	Status s = _searchTree(key, nextPid, lowIndex);
+	Status s = _searchTree(key, nextPid, lowIndex); //return next page in search down tree in nextPid
 	return s;
 }
 
@@ -994,7 +877,7 @@ Status BTreeFile::PrintTree (PageID pageID, bool printContents) {
 		LeafPage *lpage = (LeafPage*) page;
 		lpage->PrintPage(printContents);
 	}
-	
+
 	UNPIN(pageID, CLEAN);
 	return OK;
 }

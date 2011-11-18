@@ -31,7 +31,7 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 		minibase_errors.show_errors();
 		exit(1);
 	}
-	
+
 	BTreeFile* btf=createIndex(btfname);
 	if (btf==NULL) {
 		cout << "Error: Unable to create index file"<< endl;
@@ -46,9 +46,9 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 			insertHighLow(btf,low,high);
 		}
 		else if(!strcmp(command, "insertrev")) {
-			int val, num;
-			in >> val >> num;
-			insertHighLowReverse(btf,val,num);
+			int low, high;
+			in >> low >> high;
+			insertHighLowReverse(btf,low,high);
 		}
 		else if(!strcmp(command, "insertdup")) {
 			int val, num;
@@ -108,6 +108,14 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 					std::cerr << "PASSED Test " << testNum << std::endl;
 				}
 				break;
+			case 6:
+				if(!BTreeDriver::TestPerformance()) {
+					std::cerr << "FAILED Test " << testNum << std::endl;
+				}
+				else {
+					std::cerr << "PASSED Test " << testNum << std::endl;
+				}
+				break;
 			}
 
 		}
@@ -134,7 +142,7 @@ Status InteractiveBTreeTest::RunTests(istream &in) {
 BTreeFile *InteractiveBTreeTest::createIndex(char *name) {
     cout << "Create B+tree." << endl;
     cout << "  Page size="<<MINIBASE_PAGESIZE<< " Max space="<<MAX_SPACE<<endl;
-	
+
     Status status;
     BTreeFile *btf = new BTreeFile(status, name);
     if (status != OK) {
@@ -159,7 +167,7 @@ void InteractiveBTreeTest::destroyIndex(BTreeFile *btf, char *name) {
 
 
 void InteractiveBTreeTest::insertHighLow(BTreeFile *btf, int low, int high) {
-	
+
 	int numkey=high-low+1;
 	cout << "Inserting: ("<<low<<" to "<<high<<")"<<endl;
 
@@ -174,7 +182,7 @@ void InteractiveBTreeTest::insertHighLow(BTreeFile *btf, int low, int high) {
 }
 
 void InteractiveBTreeTest::insertHighLowReverse(BTreeFile *btf, int low, int high) {
-	
+
 	int numkey=high-low+1;
 	cout << "Inserting: ("<<low<<" to "<<high<<") in reverse"<<endl;
 
@@ -189,8 +197,8 @@ void InteractiveBTreeTest::insertHighLowReverse(BTreeFile *btf, int low, int hig
 }
 
 void InteractiveBTreeTest::insertDups(BTreeFile *btf, int key, int num) {
-	
-	cout << "Inserting " << num << " Duplicates: ("<<key<<endl;
+
+	cout << "Inserting " << num << " Duplicate: "<<key<<endl;
 
 	bool res = BTreeDriver::InsertDuplicates(btf, key, num,
 	                               1, 4);
@@ -205,7 +213,7 @@ void InteractiveBTreeTest::insertDups(BTreeFile *btf, int key, int num) {
 }
 
 void InteractiveBTreeTest::scanHighLow(BTreeFile *btf, int low, int high) {
-	
+
 	cout << "Scanning ("<<low<<" to "<<high<<"):"<<endl;
 
 	//int *plow=&low, *phigh=&high;
@@ -222,14 +230,14 @@ void InteractiveBTreeTest::scanHighLow(BTreeFile *btf, int low, int high) {
 
 
 	BTreeFileScan *scan = btf->OpenScan(lowPtr, highPtr);
-	
+
 
 	if(scan == NULL) {
 		cout << "  Error: cannot open a scan." << endl;
 		minibase_errors.show_errors();
 		return;
 	}
-	
+
 	RecordID rid;
 	int count=0;
 	//char skey[MAX_INT_LENGTH];
@@ -252,5 +260,3 @@ void InteractiveBTreeTest::scanHighLow(BTreeFile *btf, int low, int high) {
 	}
 	cout << "  Success."<<endl;
 }
-
-

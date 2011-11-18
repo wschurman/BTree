@@ -31,15 +31,14 @@ private:
 	BTreeFileScan();
 
 	// You may add private methods here. 
-	const char * lowKey;
-    const char * highKey;
-    BTreeFile* bt; //not needed???
-	PageID currentPageID;
-    bool done;
-	PageKVScan<RecordID>* scan;
-	LeafPage* currentPage; 
+	const char * lowKey; // min key in scan
+    const char * highKey; // max key in scan
+	PageID currentPageID; // pageID that scan is currently on
+    bool done; // true when scan is done
+	PageKVScan<RecordID>* scan; // scan for a given page
+	LeafPage* currentPage; // page that scan is currently on
 
-	Status BTreeFileScan::_SetIter();
+	Status BTreeFileScan::_SetIter(); //function to initialize PageKVScan scan to starting point for the low key
 
 };
 
